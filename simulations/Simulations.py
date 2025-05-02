@@ -130,7 +130,7 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
     variation = None   # V(t)
     gray_prev = None   # for 2-frame differencing
 
-    diff2_threshold = 8  # Tune as needed
+    diff2_threshold = 8 # Tune as needed
 
     for frame_idx, raw_path in enumerate(raw_files):
         with open(raw_path, 'rb') as f:
@@ -188,9 +188,32 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
         # motion_map = filter_motion_median_manual(motion_map)
 
 
-        # Step 5: Overlay motion on frame
+        # # Step 5: Overlay motion on frame
         output_frame = frame.copy()
-        output_frame[motion_map] = highlight_color
+        # output_frame[motion_map] = highlight_color
+        
+        # # Find bounding box of motion
+        # ys, xs = np.where(motion_map)
+        # if len(xs) > 0 and len(ys) > 0:
+        #     x_min, x_max = np.min(xs), np.max(xs)
+        #     y_min, y_max = np.min(ys), np.max(ys)
+
+        #     # Draw bounding box (top, bottom, left, right)
+        #     output_frame[y_min:y_max+1, x_min] = highlight_color         # Left edge
+        #     output_frame[y_min:y_max+1, x_max] = highlight_color         # Right edge
+        #     output_frame[y_min, x_min:x_max+1] = highlight_color         # Top edge
+        #     output_frame[y_max, x_min:x_max+1] = highlight_color         # Bottom edge
+        
+        boxes = find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixels=50, max_boxes=20)
+        for (x_min, y_min, x_max, y_max) in boxes:
+            # if (x_max - x_min) * (y_max - y_min) > 50:  # optional area filter
+                output_frame[y_min:y_max+1, x_min] = highlight_color
+                output_frame[y_min:y_max+1, x_max] = highlight_color
+                output_frame[y_min, x_min:x_max+1] = highlight_color
+                output_frame[y_max, x_min:x_max+1] = highlight_color
+
+
+
 
         # Save result
         save_rgb_frame_as_raw(
@@ -207,7 +230,6 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
 
         gray_prev = gray.copy()
 
- 
 def background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15, highlight_color=(255, 0, 0)):
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 3:
@@ -389,67 +411,7 @@ def convert_jpg_to_raw(frames_folder):
 
         with open(output_path, 'wb') as f:
             f.write(raw_bytes)
-
-def test(current_test,frames_folder,ground_truth_folder,num_frames):
-    convert_bmp_to_raw(frames_folder)
-
-    # Detect width and height
-    example_png = os.path.join(frames_folder, 'frame_000.bmp')
-    img = Image.open(example_png)
-    width, height = img.size
-
-    # Prepare paths
-    raw_folder = os.path.join(frames_folder, 'raw_rbg32')
-    output_folder = os.path.join(raw_folder, current_test)
-    os.makedirs(output_folder, exist_ok=True)
-
-    # Run motion simulation
-    if(current_test == 'sigma_delta'):
-        sigma_delta_motion_detection(
-            raw_folder=raw_folder,
-            width=width,
-            height=height,
-            highlight_color=(255, 0, 0)
-        )
-    elif(current_test == 'background_and_3frames'):
-        background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15)
-    elif(current_test == 'sigma_delta_3frames'):
-        sigma_delta_motion_detection_3frames(
-            raw_folder=raw_folder,
-            width=width,
-            height=height,
-            highlight_color=(255, 0, 0)
-        )
-    elif(current_test == 'optical_flow'):
-        optical_flow_motion_detection(
-            raw_folder=raw_folder,
-            width=width,
-            height=height,
-            highlight_color=(255, 0, 0)
-        )
-    elif(current_test == 'sigma_delta_improved'):
-        sigma_delta_motion_detection_improved(
-            raw_folder=raw_folder,
-            width=width,
-            height=height,
-            highlight_color=(255, 0, 0)
-        )
-
-
-    # Convert output to PNG
-    convert_all_raw_to_png(output_folder, width, height)
     
-    # convert back the frames to video
-    video_folder = os.path.join(frames_folder, 'test_output.mp4')
-    png_to_video(output_folder, video_folder, fps=30)
-    
-    evaluate_all_motion_maps(
-    motion_map_folder=os.path.join(raw_folder, current_test),
-    ground_truth_folder=ground_truth_folder,
-    num_frames=num_frames
-    )
-    
-
 def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_color=(255, 0, 0)):
 
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
@@ -538,7 +500,6 @@ def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_co
         gray_prev2 = gray_prev1.copy()
         gray_prev1 = gray.copy()
     
-
 def compute_gradients(img1, img2):
     sobel_x = np.array([[-1, 0, 1],
                         [-2, 0, 2],
@@ -697,7 +658,6 @@ def median_filter_3x3_window(pixels):
 
     return a[4]
 
-
 def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_color=(255, 0, 0)):
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 2:
@@ -788,49 +748,158 @@ def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_c
         #### Step 8: Update Previous Frame
         gray_prev = gray.copy()
 
+def test(current_test,frames_folder,ground_truth_folder,num_frames):
+    convert_bmp_to_raw(frames_folder)
+
+    # Detect width and height
+    example_png = os.path.join(frames_folder, 'frame_000.bmp')
+    img = Image.open(example_png)
+    width, height = img.size
+
+    # Prepare paths
+    raw_folder = os.path.join(frames_folder, 'raw_rbg32')
+    output_folder = os.path.join(raw_folder, current_test)
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Run motion simulation
+    if(current_test == 'sigma_delta'):
+        sigma_delta_motion_detection(
+            raw_folder=raw_folder,
+            width=width,
+            height=height,
+            highlight_color=(255, 0, 0)
+        )
+    elif(current_test == 'background_and_3frames'):
+        background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15)
+    elif(current_test == 'sigma_delta_3frames'):
+        sigma_delta_motion_detection_3frames(
+            raw_folder=raw_folder,
+            width=width,
+            height=height,
+            highlight_color=(255, 0, 0)
+        )
+    elif(current_test == 'optical_flow'):
+        optical_flow_motion_detection(
+            raw_folder=raw_folder,
+            width=width,
+            height=height,
+            highlight_color=(255, 0, 0)
+        )
+    elif(current_test == 'sigma_delta_improved'):
+        sigma_delta_motion_detection_improved(
+            raw_folder=raw_folder,
+            width=width,
+            height=height,
+            highlight_color=(255, 0, 0)
+        )
+
+
+    # Convert output to PNG
+    convert_all_raw_to_png(output_folder, width, height)
     
+    # convert back the frames to video
+    video_folder = os.path.join(frames_folder, 'test_output.mp4')
+    png_to_video(output_folder, video_folder, fps=30)
+    
+    evaluate_all_motion_maps(
+    motion_map_folder=os.path.join(raw_folder, current_test),
+    ground_truth_folder=ground_truth_folder,
+    num_frames=num_frames
+    )
+ 
+ 
+
+def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixels=20, max_boxes=8):
+    height, width = motion_map.shape
+    boxes = np.zeros((max_boxes, 4), dtype=np.int16)  # [x_min, y_min, x_max, y_max]
+    box_valid = np.zeros(max_boxes, dtype=bool)
+
+    for y in range(height):
+        x = 0
+        while x < width:
+            if motion_map[y, x]:
+                x_start = x
+                while x < width and motion_map[y, x]:
+                    x += 1
+                x_end = x - 1
+
+                merged = False
+                for i in range(max_boxes):
+                    if not box_valid[i]:
+                        continue
+                    bx_min, by_min, bx_max, by_max = boxes[i]
+                    if x_start <= bx_max and x_end >= bx_min and y <= by_max + 1:
+                        boxes[i, 0] = min(bx_min, x_start)
+                        boxes[i, 1] = min(by_min, y)
+                        boxes[i, 2] = max(bx_max, x_end)
+                        boxes[i, 3] = max(by_max, y)
+                        merged = True
+                        break
+
+                if not merged:
+                    inserted = False
+                    for i in range(max_boxes):
+                        if not box_valid[i]:
+                            boxes[i] = [x_start, y, x_end, y]
+                            box_valid[i] = True
+                            inserted = True
+                            break
+                    if not inserted:
+                        # All boxes full — evict smallest if new box is larger
+                        new_area = (x_end - x_start + 1)
+                        min_area = float('inf')
+                        min_idx = -1
+                        for i in range(max_boxes):
+                            if box_valid[i]:
+                                bx_min, by_min, bx_max, by_max = boxes[i]
+                                area = (bx_max - bx_min + 1) * (by_max - by_min + 1)
+                                if area < min_area:
+                                    min_area = area
+                                    min_idx = i
+                        if new_area > min_area and min_idx >= 0:
+                            boxes[min_idx] = [x_start, y, x_end, y]
+
+            else:
+                x += 1
+
+    final_boxes = []
+    for i in range(max_boxes):
+        if box_valid[i]:
+            x_min, y_min, x_max, y_max = boxes[i]
+            area = (x_max - x_min + 1) * (y_max - y_min + 1)
+            if area >= min_pixels:
+                final_boxes.append((x_min, y_min, x_max, y_max))
+
+    return final_boxes
+
+
+
+
+ 
 def main():
-    #### background_and_3frames or sigma_delta or sigma_delta_3frames or optical_flow or sigma_delta_improved
-    ###### TEST1 #########
-    print("TEST1")
-    test('sigma_delta','simulations/Testcases/test1','simulations/Testcases/test1/ground_truth',300)
+    selected_algorithm = 'sigma_delta'  # Change here if you want to run another algorithm
 
-    ####### TEST2 #########
-    print("TEST2")
-    test('sigma_delta','simulations/Testcases/test2','simulations/Testcases/test2/ground_truth',272)
+    test_cases = [
+        ('test1',  300),
+        ('test2',  272),
+        ('test3',  525),
+        ('test4',  300),
+        ('test5',  225),
+        ('test6',  250),
+        ('test7',  250),
+        ('test8',  300),
+        ('test9',  275),
+        ('test10', 400)
+    ]
 
-    ####### TEST3 #########
-    print("TEST3")
-    test('sigma_delta','simulations/Testcases/test3','simulations/Testcases/test3/ground_truth',525)
-    
-    ####### TEST4 #########
-    print("TEST4")
-    test('sigma_delta','simulations/Testcases/test4','simulations/Testcases/test4/ground_truth',300)
-
-    ####### TEST5 #########
-    print("TEST5")
-    test('sigma_delta','simulations/Testcases/test5','simulations/Testcases/test5/ground_truth',225)
-
-    ####### TEST6 #########
-    print("TEST6")
-    test('sigma_delta','simulations/Testcases/test6','simulations/Testcases/test6/ground_truth',250)
-
-    ####### TEST7 #########
-    print("TEST7")
-    test('sigma_delta','simulations/Testcases/test7','simulations/Testcases/test7/ground_truth',250)
-    
-    ####### TEST8 #########
-    print("TEST8")
-    test('sigma_delta','simulations/Testcases/test8','simulations/Testcases/test8/ground_truth',300)
-    
-    ###### TEST9 #########
-    print("TEST9")
-    test('sigma_delta','simulations/Testcases/test9','simulations/Testcases/test9/ground_truth',275)
-    
-    ####### TEST10 #########
-    print("TEST10")
-    test('sigma_delta','simulations/Testcases/test10','simulations/Testcases/test10/ground_truth',400)
-
+    for test_name, num_frames in test_cases:
+        print(f"\n🔍 Running {test_name.upper()} with {selected_algorithm}")
+        test(
+            current_test=selected_algorithm,
+            frames_folder=f'simulations/Testcases/{test_name}',
+            ground_truth_folder=f'simulations/Testcases/{test_name}/ground_truth',
+            num_frames=num_frames
+        )
     
     
 if __name__ == '__main__':
