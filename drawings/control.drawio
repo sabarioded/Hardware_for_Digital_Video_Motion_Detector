@@ -103,8 +103,8 @@
             <mxPoint x="1191" y="-242" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="_dmp6Z-85riZm-q_4aw_-10" value="&lt;span style=&quot;font-size: 18px;&quot;&gt;motion|_enable&lt;/span&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
-          <mxGeometry x="1056" y="-280" width="150" height="40" as="geometry" />
+        <mxCell id="_dmp6Z-85riZm-q_4aw_-10" value="&lt;span style=&quot;font-size: 18px;&quot;&gt;motion_enable&lt;/span&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1071" y="-280" width="140" height="40" as="geometry" />
         </mxCell>
         <mxCell id="_dmp6Z-85riZm-q_4aw_-11" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=3;" edge="1" parent="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
