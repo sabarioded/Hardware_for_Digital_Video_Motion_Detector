@@ -55,7 +55,8 @@ x: comp run
 #   +incdir+.        : Adds the current directory to the include search path
 #   Lists all design files, interface files, and testbench files necessary for the project.
 comp:
-	$(VCS) +incdir+. sigma_delta_update.sv \
+	$(VCS) +incdir+. sigma_delta.sv \
+		   sigma_delta_assertions.sv \
            sigma_delta_if.sv \
            sigma_delta_transaction.sv \
            sigma_delta_sequence.sv \

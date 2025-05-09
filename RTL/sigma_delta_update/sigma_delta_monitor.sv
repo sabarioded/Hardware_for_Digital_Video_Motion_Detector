@@ -31,18 +31,21 @@ class sigma_delta_monitor extends uvm_monitor;
 
 	forever begin
 	  @(posedge vif.clk);
+	  if(!vif.rst) begin
 		tr = sigma_delta_transaction::type_id::create("tr", this);
 		tr.enable            = vif.enable;
 		tr.wr_background     = vif.wr_background;
 		tr.curr_pixel        = vif.curr_pixel;
 		tr.background        = vif.background;
 		tr.variance          = vif.variance;
+		#1ns
 		tr.background_next  = vif.background_next;
 		tr.variance_next      = vif.variance_next;
 		tr.motion_detected   = vif.motion_detected;
 		ap.write(tr);
-		`uvm_info("MONITOR", $sformatf("Sent transaction: enable=%b, wr_background=%b, curr_pixel=%d, background=%d, variance=%d, background_next=%d, variance_next=%d, motion_detected=%b",
-									 tr.enable, tr.wr_background, tr.curr_pixel, tr.background, tr.variance, tr.background_next, tr.variance_next, tr.motion_detected), UVM_HIGH);
+//		`uvm_info("MONITOR", $sformatf("Sent transaction: enable=%b, wr_background=%b, curr_pixel=%d, background=%d, variance=%d, background_next=%d, variance_next=%d, motion_detected=%b",
+//									 tr.enable, tr.wr_background, tr.curr_pixel, tr.background, tr.variance, tr.background_next, tr.variance_next, tr.motion_detected), UVM_HIGH);
+	  end
 	  end
   endtask
 

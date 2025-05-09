@@ -23,7 +23,7 @@ module sigma_delta_assertions (
 	logic [8:0] diff;
 	assign diff = (curr_pixel > background) ? (curr_pixel - background) :
 											   (background - curr_pixel);
-
+	
 	// === [1] Background overflow/underflow protection ===
 
 	property background_increment_safe;
@@ -51,19 +51,19 @@ module sigma_delta_assertions (
 
 	property variance_lower_bound_safe;
 		@(posedge clk) disable iff (rst || !enable)
-		(variance < 3 && curr_pixel != background) |-> (variance_next >= 8'd2);
+		(variance < 4 && curr_pixel != background) |-> (variance_next >= 8'd2);
 	endproperty
 	assert property (variance_lower_bound_safe)
 		else $error("variance_next underflow!");
 
 	// === [3] Direct background write ===
-
-	property direct_background_write;
-		@(posedge clk) disable iff (rst || !enable)
-		wr_background |-> (background_next == curr_pixel);
-	endproperty
-	assert property (direct_background_write)
-		else $error("wr_background active but background_next != curr_pixel");
+		always @(posedge clk) begin
+			if (!rst && enable && wr_background) begin
+			  #1;
+			  assert (background_next == curr_pixel)
+				else $error("background_next != curr_pixel (1ns after wr_background)");
+			end
+		  end
 
 	// === [4] Motion detection logic ===
 

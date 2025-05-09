@@ -27,8 +27,7 @@ class sigma_delta_test extends uvm_test;
 	  // Create and start sequence with context
 	  seq = sigma_delta_sequence::type_id::create("seq", this);
 	  seq.start(env.agent.seqr);
-
-	  #100us; // optional wait
+	  
 	  phase.drop_objection(this);
 	endtask
 

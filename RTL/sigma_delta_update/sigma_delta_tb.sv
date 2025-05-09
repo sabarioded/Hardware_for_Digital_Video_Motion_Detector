@@ -13,7 +13,7 @@ import uvm_pkg::*;
 sigma_delta_if vif();
 
 // Instantiate the DUT
-sigma_delta_update dut (
+sigma_delta dut (
 	.clk(vif.clk),
 	.rst(vif.rst),
 	.enable(vif.enable),

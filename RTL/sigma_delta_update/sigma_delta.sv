@@ -6,7 +6,7 @@
  * Description   :
  *------------------------------------------------------------------------------*/
 
-module sigma_delta_update (
+module sigma_delta (
 	input  logic        clk,
 	input  logic        rst,
 	input  logic        enable,
@@ -19,12 +19,12 @@ module sigma_delta_update (
 	output logic        motion_detected
 );
 
-	logic [8:0] diff; // One extra bit to avoid underflow in subtraction
+	logic [7:0] diff; 
 	assign diff = (curr_pixel > background) ? (curr_pixel - background) :
 												(background - curr_pixel);
 
 	always_ff @(posedge clk or posedge rst) begin
-		if (rst) begin
+		if (rst || !enable) begin
 			background_next <= 8'd0;
 			variance_next   <= 8'd2;
 		end else if (enable) begin

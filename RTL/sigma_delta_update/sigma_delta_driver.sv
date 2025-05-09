@@ -24,24 +24,26 @@ class sigma_delta_driver extends uvm_driver #(sigma_delta_transaction);
 
 	task run_phase(uvm_phase phase);
 		sigma_delta_transaction tr;
-		// wait for reset deassertion
-//		wait (!vif.rst);
-
+		vif.rst = 1;
+		@(posedge vif.clk);
+		vif.rst = 0;
+		@(posedge vif.clk);
+		
 		forever begin
 			
+			#1ns
 			seq_item_port.get_next_item(tr);
-			@(posedge vif.clk);
 			vif.enable        <= tr.enable;
 			vif.wr_background <= tr.wr_background;
 			vif.curr_pixel    <= tr.curr_pixel;
 			vif.background    <= tr.background;
 			vif.variance      <= tr.variance;
-			@(posedge vif.clk);  // Wait for one cycle if needed
+			@(posedge vif.clk); 
 
 
-			`uvm_info("DRIVER", $sformatf(
-				"Driving: enable=%0b, wr_bg=%0b, curr=%0d, bg=%0d, var=%0d",
-				tr.enable, tr.wr_background, tr.curr_pixel, tr.background, tr.variance), UVM_MEDIUM);
+//			`uvm_info("DRIVER", $sformatf(
+//				"Driving: enable=%0b, wr_bg=%0b, curr=%0d, bg=%0d, var=%0d",
+//				tr.enable, tr.wr_background, tr.curr_pixel, tr.background, tr.variance), UVM_MEDIUM);
 
 
 			seq_item_port.item_done();
