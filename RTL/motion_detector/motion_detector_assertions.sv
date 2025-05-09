@@ -1,12 +1,12 @@
 /*------------------------------------------------------------------------------
- * File          : motion_detector.sv
+ * File          : motion_detector_assertions.sv
  * Project       : RTL
  * Author        : eposmk
  * Creation date : May 9, 2025
  * Description   :
  *------------------------------------------------------------------------------*/
 
-module motion_detector (
+module motion_detector_assertions (
 	input  logic        clk,
 	input  logic        rst,
 	input  logic        enable,
@@ -15,10 +15,9 @@ module motion_detector (
 	input  logic [7:0]  curr_pixel,
 	input  logic [7:0]  prev_pixel,
 	input  logic [7:0]  threshold,
-	output logic        motion_detected
+	input  logic        motion_detected
 );
 
-	// Internal signals for absolute differences
 	logic [7:0] pixel_diff;
 	logic [7:0] background_diff;
 
@@ -30,12 +29,20 @@ module motion_detector (
 							 (curr_pixel - background) :
 							 (background - curr_pixel);
 
-	always_ff @(posedge clk or posedge rst) begin
-		if (rst || !enable) begin
-			motion_detected <= 1'b0;
-		end else begin
-			motion_detected <= (pixel_diff > threshold) && (background_diff >= variance);
-		end
-	end
+	// === Assertions ===
+
+	property motion_detected_valid;
+		@(posedge clk) disable iff (rst || !enable)
+		((pixel_diff > threshold) && (background_diff >= variance)) |-> ##1 motion_detected;
+	endproperty
+	assert property (motion_detected_valid)
+		else $error("motion_detected should be HIGH");
+
+	property motion_detected_clear;
+		@(posedge clk) disable iff (rst || !enable)
+		((pixel_diff <= threshold || background_diff < variance)) |-> ##1 !motion_detected;
+	endproperty
+	assert property (motion_detected_clear)
+		else $error("motion_detected should be LOW");
 
 endmodule
