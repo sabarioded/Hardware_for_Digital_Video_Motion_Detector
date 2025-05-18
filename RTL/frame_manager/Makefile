@@ -18,7 +18,7 @@ CFLAGS = full64
 #   -cm               : Enable code coverage with various options (line, cond, fsm, etc.)
 #   -CFLAGS -DVCS     : Pass flags to the C compiler for DPI usage
 VCS = vcs -sverilog -kdb +warn=noOBSV2G -full64 -timescale=1ns/1ns \
-    -debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
+	-debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
 	+define+UVM_OBJECT_MUST_HAVE_CONSTRUCTOR \
 	+incdir+$(UVM_HOME)/src $(UVM_HOME)/src/uvm.sv \
 	-cm_cond allops+anywidth+event -cm_noconst \
@@ -45,19 +45,22 @@ x: comp run
 #   +incdir+.        : Adds the current directory to the include search path
 #   Lists all design files, interface files, and testbench files necessary for the project.
 comp:
-	$(VCS) +define+ENABLE_SIGMA_ASSERTIONS \
-		   +incdir+. sigma_delta.sv \
-           sigma_delta_if.sv \
-           sigma_delta_transaction.sv \
-           sigma_delta_sequence.sv \
-           sigma_delta_sequencer.sv \
-           sigma_delta_driver.sv \
-           sigma_delta_monitor.sv \
-           sigma_delta_scoreboard.sv \
-           sigma_delta_agent.sv \
-           sigma_delta_env.sv \
-           sigma_delta_test.sv \
-           sigma_delta_tb.sv
+	$(VCS) +define+ENABLE_FM_ASSERTIONS \
+	  +incdir+. \
+	  frame_manager.sv \
+	  sigma_delta.sv \
+	  fm_if.sv \
+	  fm_trans.sv \
+	  fm_sequence.sv \
+	  fm_sequencer.sv \
+	  fm_driver.sv \
+	  fm_monitor.sv \
+	  fm_scoreboard.sv \
+	  fm_agent.sv \
+	  fm_env.sv \
+	  fm_test.sv \
+	  fm_tb.sv
+
 
 # Run target: runs the simulation after compilation
 run:
@@ -65,4 +68,4 @@ run:
 
 # Clean target: removes generated files from the previous compilation and simulation runs
 clean:
-	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvm
+	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvmF

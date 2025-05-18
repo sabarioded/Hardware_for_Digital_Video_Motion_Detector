@@ -15,6 +15,10 @@ class sigma_delta_scoreboard extends uvm_scoreboard;
   endfunction
 
   int unsigned error_count; 
+  // Store last output values to handle disable case
+  bit [7:0] prev_background_next;
+  bit [7:0] prev_variance_next;
+  
   virtual function void build_phase(uvm_phase phase);
 	super.build_phase(phase);
 	error_count = 0;
@@ -38,6 +42,9 @@ class sigma_delta_scoreboard extends uvm_scoreboard;
 
 	 if (cycle_count <= 2) begin
 		`uvm_info("SCOREBOARD", $sformatf("Skipping cycle %0d (initialization)", cycle_count), UVM_MEDIUM)
+		// Update prev outputs even if skipping to align with DUT
+		prev_background_next = tr.background_next;
+		prev_variance_next   = tr.variance_next;
 		return;
 	 end
 
@@ -75,17 +82,17 @@ class sigma_delta_scoreboard extends uvm_scoreboard;
 	  expected.variance_next = tr.variance;
 	end
 	
-	if(!tr.enable) begin
-		expected.variance_next = 2;
-		expected.background_next = 0; 
+	// === DISABLE CASE: retain previous values if enable is low ===
+	if (!tr.enable) begin
+	  expected.background_next = prev_background_next;
+	  expected.variance_next = prev_variance_next;
 	end
+	prev_background_next = tr.background_next;
+	prev_variance_next   = tr.variance_next;
 
 	// === COMPARISONS ===
-	if (expected.background_next !== tr.background_next)
-	  background_next_error = 1;
-
-	if (expected.variance_next !== tr.variance_next)
-	  variance_next_error = 1;
+	background_next_error = (expected.background_next !== tr.background_next);
+	variance_next_error   = (expected.variance_next   !== tr.variance_next);
 
 	// === RESULTS ===
 	if (background_next_error || variance_next_error) begin
@@ -96,10 +103,10 @@ class sigma_delta_scoreboard extends uvm_scoreboard;
 									    tr.background_next, tr.variance_next))
 	end
 	else begin
-	  `uvm_info("SCOREBOARD", $sformatf("Passed! \nInput: curr_pixel=%0d, background=%0d, variance=%0d, wr_background=%0b \nExpected: bg_next=%0d var_next=%0d \nGot: bg_next=%0d var_next=%0d",
-			  tr.curr_pixel, tr.background, tr.variance, tr.wr_background,
-			  expected.background_next, expected.variance_next,
-			  tr.background_next, tr.variance_next),UVM_LOW)
+	  //`uvm_info("SCOREBOARD", $sformatf("Passed! \nInput: curr_pixel=%0d, background=%0d, variance=%0d, wr_background=%0b \nExpected: bg_next=%0d var_next=%0d \nGot: bg_next=%0d var_next=%0d",
+	//		  tr.curr_pixel, tr.background, tr.variance, tr.wr_background,
+		//	  expected.background_next, expected.variance_next,
+			//  tr.background_next, tr.variance_next),UVM_LOW)
 	end
 	
   endfunction

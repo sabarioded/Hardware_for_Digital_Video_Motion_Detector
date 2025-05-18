@@ -25,9 +25,11 @@ class sigma_delta_driver extends uvm_driver #(sigma_delta_transaction);
 	task run_phase(uvm_phase phase);
 		sigma_delta_transaction tr;
 		vif.rst = 1;
+		vif.enable = 0;
 		@(posedge vif.clk);
 		vif.rst = 0;
 		@(posedge vif.clk);
+
 		
 		forever begin
 			

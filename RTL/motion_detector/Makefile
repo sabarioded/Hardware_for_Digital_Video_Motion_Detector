@@ -27,9 +27,9 @@ x: comp run
 
 # Compilation target for motion detector project
 comp:
-	$(VCS) +incdir+. \
+	$(VCS) +define+ENABLE_MD_ASSERTIONS \
+		+incdir+. \
         motion_detector.sv \
-        motion_detector_assertions.sv \
         motion_detector_if.sv \
         motion_detector_transaction.sv \
         motion_detector_sequence.sv \

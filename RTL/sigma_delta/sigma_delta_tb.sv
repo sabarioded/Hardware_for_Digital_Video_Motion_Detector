@@ -25,19 +25,6 @@ sigma_delta dut (
 	.variance_next(vif.variance_next)
 );
 
-// Instantiate the assertions
-sigma_delta_assertions assertions (
-	.clk(vif.clk),
-	.rst(vif.rst),
-	.enable(vif.enable),
-	.wr_background(vif.wr_background),
-	.curr_pixel(vif.curr_pixel),
-	.background(vif.background),
-	.variance(vif.variance),
-	.background_next(vif.background_next),
-	.variance_next(vif.variance_next)
-);
-
 initial begin
 	uvm_config_db#(virtual sigma_delta_if)::set(null, "*", "vif", vif);
 	run_test("sigma_delta_test");

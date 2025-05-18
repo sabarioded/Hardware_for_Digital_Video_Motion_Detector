@@ -26,19 +26,6 @@ motion_detector dut (
 	.motion_detected (vif.motion_detected)
 );
 
-// === Instantiate the Assertions ===
-motion_detector_assertions assertions (
-	.clk             (vif.clk),
-	.rst             (vif.rst),
-	.enable          (vif.enable),
-	.background      (vif.background),
-	.variance        (vif.variance),
-	.curr_pixel      (vif.curr_pixel),
-	.prev_pixel      (vif.prev_pixel),
-	.threshold       (vif.threshold),
-	.motion_detected (vif.motion_detected)
-);
-
 // === UVM Configuration ===
 initial begin
 	uvm_config_db#(virtual motion_detector_if)::set(null, "*", "vif", vif);
