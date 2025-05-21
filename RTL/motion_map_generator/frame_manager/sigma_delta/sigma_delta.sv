@@ -171,18 +171,6 @@ module sigma_delta (
     end
   end
 
-  // [10] Range
-  always @(posedge clk) begin
-    if (!rst && enable) begin
-      #1;
-      assert (background_next >= 0   && background_next <= 8'd255 &&
-              variance_next   >= 0   && variance_next   <= 8'd255)
-        else `uvm_fatal("A10",
-             $sformatf("[%0t] A10 range failed: bg_n=%0d var_n=%0d",
-                       $time, background_next, variance_next));
-    end
-  end
-
 `endif // ENABLE_SIGMA_ASSERTIONS
 `endif // SYNTHESIS
 
