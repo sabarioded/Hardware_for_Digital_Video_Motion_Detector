@@ -70,6 +70,9 @@ class bbox_scoreboard extends uvm_component;
 	end
 
 	if (tr.pixel_valid) begin
+		if(tr.enable == 0) begin
+			`uvm_error("SCOREBOARD"," enable low and valid high");
+		end
 	  on_any_edge = 0;
 	  // Determine if current pixel is on the delayed box outline
 	  foreach (expected_list[i]) begin

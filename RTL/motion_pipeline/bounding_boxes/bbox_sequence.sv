@@ -9,21 +9,19 @@
 class bbox_sequence extends uvm_sequence#(bbox_trans);
   `uvm_object_utils(bbox_sequence)
 
-  int num_frames  = 4;
+  int num_frames  = 10;
   int width_cfg   = 352;
   int height_cfg  = 288;
 
   localparam int MAX_BLOBS = 20;
 
-  // Store original individual blob coordinates as a queue for easy access during pixel generation
-  // This will represent the "pre-merge" state for the driver's pixel stream
   typedef struct {
 	int x0, y0, x1, y1;
   } blob_info_t;
-  blob_info_t initial_frame_blobs[$]; // Renamed for clarity - these are the original blobs for the current frame
+  blob_info_t initial_frame_blobs[$]; 
 
   // Queue to store the final merged blobs for scoreboard expectation
-  blob_info_t merged_blobs_for_scoreboard[$]; // Renamed active_blobs for clarity
+  blob_info_t merged_blobs_for_scoreboard[$]; 
 
   function new(string name = "bbox_sequence");
 	super.new(name);
@@ -163,7 +161,7 @@ class bbox_sequence extends uvm_sequence#(bbox_trans);
 	for (int idx = 0; idx < total_pixels; idx++) begin
 	  tr = bbox_trans::type_id::create("tr_final_zero");
 	  tr.randomize() with {
-		tr.enable        == 1;
+		tr.enable     dist {1 := 80, 0 := 20};// == 1;
 		tr.motion_pixel  == 0;
 		tr.last_in_frame == (idx == total_pixels - 1);
 		tr.width         == width_cfg;

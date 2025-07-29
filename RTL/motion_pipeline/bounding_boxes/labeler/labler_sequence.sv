@@ -18,7 +18,7 @@ class labler_sequence extends uvm_sequence#(labler_trans);
   virtual task body();
 	labler_trans tr;
 
-	repeat (10000) begin
+	repeat (1000000) begin
 	  // Create transaction under the sequencer (a uvm_component)
 	  tr = labler_trans::type_id::create(
 			 $sformatf("%s_tran", get_name()),
@@ -39,6 +39,29 @@ class labler_sequence extends uvm_sequence#(labler_trans);
 	  // Start and finish sequence item
 	  start_item(tr);
 	  finish_item(tr);
+	end
+	
+	repeat (10000) begin
+		// Create transaction under the sequencer (a uvm_component)
+		tr = labler_trans::type_id::create(
+			   $sformatf("%s_tran", get_name()),
+			   m_sequencer
+			 );
+
+		// Randomize fields with weighted distributions
+		assert(tr.randomize() with {
+		  enable        == 1;
+		  motion_pixel  dist {1 := 80, 0 := 20};
+		  last_in_frame  == 0;
+		  left_label    dist {255 := 5, 0 := 35, [1:85] := 20, [86:170] := 20, [171:254] := 20};
+		  top_label     dist {255 := 5, 0 := 35, [1:85] := 20, [86:170] := 20, [171:254] := 20};
+		}) else begin
+		  `uvm_error(get_full_name(), "Randomization failed for labler_trans")
+		end
+
+		// Start and finish sequence item
+		start_item(tr);
+		finish_item(tr);
 	end
 	
 	repeat (1000) begin

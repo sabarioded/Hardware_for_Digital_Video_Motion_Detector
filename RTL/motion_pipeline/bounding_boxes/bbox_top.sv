@@ -40,10 +40,6 @@ module bbox_top #(
 );
 localparam int PROX = 5; 
 // -------------------------------------------------------------------------
-// Coordinate generation
-// Generates the current pixel's X and Y coordinates within the frame.
-// X increments per clock, Y increments when X reaches 'width - 1'.
-// Both reset at the start of a new frame (last_in_frame).
 logic [WIDTH_BITS-1:0] x;
 logic [HEIGHT_BITS-1:0] y;
 
@@ -66,8 +62,6 @@ end
 
 	// -------------------------------------------------------------------------
 	// Stage 1: Labeler + Line Buffer
-	// This stage assigns labels to connected motion pixels and stores labels
-	// for the previous row to determine vertical connectivity.
 	logic [LABEL_WIDTH-1:0] left_label, top_label;
 	logic [LABEL_WIDTH-1:0] label_line [0:MAX_WIDTH-1]; // Stores labels of the previous row
 
@@ -418,9 +412,6 @@ typedef enum logic [1:0] {
 					end
 					*/
 					// END DEBUG
-					if (!enable) begin
-						output_state <= IDLE_OUT;
-					end
 				end
 				default: begin
 					output_state <= IDLE_OUT;
@@ -428,6 +419,8 @@ typedef enum logic [1:0] {
 					pixel_valid       <= 1'b0;
 				end
 			endcase
+		end else begin
+			pixel_valid       <= 1'b0;
 		end
 	end
 	/*
@@ -441,5 +434,6 @@ end
 assign x_out = x_reg;
 assign y_out = y_reg;
 // END DEBUG
-*/
+	*/
+	
 endmodule

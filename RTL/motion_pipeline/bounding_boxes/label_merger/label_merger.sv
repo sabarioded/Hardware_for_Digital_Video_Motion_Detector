@@ -96,10 +96,90 @@ always_comb begin
 end
 
 
-	`ifndef SYNTHESIS
-	`ifdef ENABLE_LM_ASSERTIONS
+`ifndef SYNTHESIS
+`ifdef ENABLE_LM_ASSERTIONS
 
-	`endif // ENABLE_MMG_ASSERTIONS
-	`endif // SYNTHESIS
+// ============================================================================
+// 1) Reset / Frame-End Identity Table Checks
+// ============================================================================
+// ----------------------------------------------------------------------------
+// Assertion: label_table must be identity after reset
+// ----------------------------------------------------------------------------
+always @(posedge clk) begin
+  if (rst) begin
+	// small delay until label_table is supposed to be ready
+	@(posedge clk);
+	foreach (label_table[i]) begin
+	  if (label_table[i] !== i) begin
+		`uvm_fatal("LM_A1", $sformatf("[%0t] LM_A1: label_table[%0d] = %0d, expected %0d", $time, i, label_table[i], i))
+	  end
+	end
+  end
+end
+
+// ============================================================================
+// 2) Merge Interface Sanity Checks
+// ============================================================================
+
+// Merge inputs must always be valid label IDs
+property merge_inputs_in_range;
+  @(posedge clk) disable iff (rst)
+	(enable && merge_valid)
+	|-> ((merge_a < NUM_LABELS) && (merge_b < NUM_LABELS));
+endproperty
+assert property (merge_inputs_in_range)
+  else `uvm_fatal("LM_A2", $sformatf("[%0t] LM_A3: merge_a=%0d or merge_b=%0d out of range", $time, merge_a, merge_b));
+
+// ============================================================================
+// 3) Merge Operation Behavior
+// ============================================================================
+
+// After merge_valid, the target entry (merge_b) should point to final_root_a next cycle
+property merge_updates_to_final_root;
+  @(posedge clk) disable iff (rst)
+	(enable && merge_valid)
+	|=> (label_table[$past(merge_b)] == $past(final_root_a));
+endproperty
+assert property (merge_updates_to_final_root)
+  else `uvm_fatal("LM_A3", $sformatf("[%0t] LM_A4: label_table[%0d]=%0d != expected final_root_a=%0d",
+									 $time, $past(merge_b), label_table[$past(merge_b)], $past(final_root_a)));
+
+// ============================================================================
+// 4) Resolve Path Behavior
+// ============================================================================
+
+// When resolving a label, the resolved_label must itself be a root (idempotent)
+property resolve_must_return_root;
+  @(posedge clk) disable iff (rst)
+	(enable && resolve_valid)
+	|-> (resolved_label == label_table[resolved_label]);
+endproperty
+assert property (resolve_must_return_root)
+  else `uvm_fatal("LM_A4", $sformatf("[%0t] LM_A5: resolved_label=%0d not a root!", $time, resolved_label));
+
+// Resolve must always produce a valid label ID or 0 when idle
+property resolve_output_in_range;
+  @(posedge clk) disable iff (rst)
+	(enable && resolve_valid)
+	|-> ((resolved_label < NUM_LABELS));
+endproperty
+assert property (resolve_output_in_range)
+  else `uvm_fatal("LM_A5", $sformatf("[%0t] LM_A6: resolved_label=%0d invalid/out-of-range", $time, resolved_label));
+
+// ============================================================================
+// 5) Protocol & Idle Checks
+// ============================================================================
+
+// When idle (no enable or no valid operation), resolved_label must be 0
+property idle_resolve_must_be_zero;
+  @(posedge clk) disable iff (rst)
+	((!enable) || (!resolve_valid))
+	|-> (resolved_label == 0);
+endproperty
+assert property (idle_resolve_must_be_zero)
+  else `uvm_fatal("LM_A6", $sformatf("[%0t] LM_A7: resolved_label not zero when idle", $time));
+
+`endif // ENABLE_LM_ASSERTIONS
+`endif // SYNTHESIS
 
 endmodule
