@@ -11,7 +11,7 @@ class dmd_test extends uvm_test;
 
 	dmd_env  env;
 
-	function new(string name = "dmd_test", uvm_codmdonent parent = null);
+	function new(string name = "dmd_test", uvm_component parent = null);
 	  super.new(name, parent);
 	endfunction
 

@@ -27,31 +27,29 @@ class dmd_trans extends uvm_sequence_item;
 
   // AXI4-Lite Slave (config: width/height/threshold)
   rand bit                      s_axil_valid;
-  rand bit [10:0]               s_axil_width;
-  rand bit [9:0]                s_axil_height;
-  rand bit [7:0]                s_axil_threshold;
+  rand bit [31:0]               s_axil_data;
   bit                           as_axil_ready;
 
   // AXI4-Lite Master (memory for pixels)
   // Write Address Channel
-  rand bit                      m_axi_awvalid;
-  bit                           m_axi_awready;
-  rand bit [ADDR_WIDTH-1:0]     m_axi_awaddr;
+  bit                      m_axi_awvalid;
+  rand bit                           m_axi_awready;
+  bit [ADDR_WIDTH-1:0]     m_axi_awaddr;
   
   // Write Data Channel
-  rand bit                      m_axi_wvalid;
-  bit                           m_axi_wready;
-  rand bit [DATA_WIDTH-1:0]     m_axi_wdata;
+  bit                      m_axi_wvalid;
+  rand bit                           m_axi_wready;
+  bit [DATA_WIDTH-1:0]     m_axi_wdata;
 
   // Read Address Channel
-  rand bit                      m_axi_arvalid;
-  bit                           m_axi_arready;
-  rand bit [ADDR_WIDTH-1:0]     m_axi_araddr;
+  bit                      m_axi_arvalid;
+  rand bit                           m_axi_arready;
+  bit [ADDR_WIDTH-1:0]     m_axi_araddr;
 
   // Read Data Channel
-  bit                           m_axi_rvalid;
-  rand bit                      m_axi_rready;
-  bit [DATA_WIDTH-1:0]          m_axi_rdata;
+  rand bit                           m_axi_rvalid;
+  bit                      m_axi_rready;
+  rand bit [DATA_WIDTH-1:0]          m_axi_rdata;
   
   int frame_id;
 
@@ -61,7 +59,7 @@ class dmd_trans extends uvm_sequence_item;
   function new(string name = "dmd_trans");
 	super.new(name);
   endfunction
-  
+
   function void set_all_inactive();
 	  s_axis_tvalid = 0;
 	  s_axis_tdata = '0;
@@ -69,16 +67,12 @@ class dmd_trans extends uvm_sequence_item;
 	  m_axis_tready = 1; // Assume downstream is always ready for output for simplicity
 
 	  s_axil_valid = 0;
-	  s_axil_width = '0;
-	  s_axil_height = '0;
-	  s_axil_threshold = '0;
+	  s_axil_data = '0;
 
 	  m_axi_awready = 1; // Assume memory is always ready for addresses
 	  m_axi_wready = 1;  // Assume memory is always ready for write data
 	  m_axi_arready = 1; // Assume memory is always ready for read addresses
 	  m_axi_rvalid = 1;  // Assume memory always has valid read data (driver will provide actual data)
-	  m_axi_rready = 1;  // Assume always ready to consume read data from memory
-	  m_axi_rdata = '0;  // Default read data
   endfunction
 
 endclass : dmd_trans

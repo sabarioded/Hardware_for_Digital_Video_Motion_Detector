@@ -7,6 +7,11 @@
  *------------------------------------------------------------------------------*/
 
 interface dmd_if;
+// Parameterized widths
+localparam int STREAM_WIDTH = 32;
+localparam int ADDR_WIDTH   = 32;
+localparam int DATA_WIDTH   = 32;
+
   logic                     clk;
   logic                     rst;
 
@@ -24,9 +29,7 @@ interface dmd_if;
 
 // AXI4-Lite Slave (config: width/height/threshold)
   logic                     s_axil_valid;
-  logic [10:0]              s_axil_width;
-  logic [9:0]               s_axil_height;
-  logic [7:0]               s_axil_threshold;
+  logic [31:0]              s_axil_data;
  logic                     as_axil_ready; // AXI-Lite Slave Ready
 
 // AXI4-Lite Master (memory for pixels)

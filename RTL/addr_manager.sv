@@ -37,8 +37,8 @@ module addr_manager (
 			next_read_idx  = read_idx;
 
 			if (enable && last) begin
-				next_write_idx = (write_idx + 1) % 3;
-				next_read_idx  = (read_idx + 1) % 3;
+				next_write_idx = (write_idx + 1) % 4;
+				next_read_idx  = (read_idx + 1) % 4;
 			end
 
 			write_idx <= next_write_idx;

@@ -15,10 +15,11 @@ class dmd_agent extends uvm_agent;
 	dmd_monitor monitor;
 	
 	// analysis port from monitor to scoreboard
-	uvm_analysis_port#(dmd_trans) ap;
+	uvm_analysis_port#(dmd_trans) dut_ap;
+	uvm_analysis_port#(dmd_trans) exp_ap;
 	
 	// constructor
-	function new(string name = "dmd_agent", uvm_codmdonent parent = null);
+	function new(string name = "dmd_agent", uvm_component parent = null);
 		super.new(name,parent);
 	endfunction
 	
@@ -28,7 +29,8 @@ class dmd_agent extends uvm_agent;
 		seqr = dmd_sequencer::type_id::create("seqr",this);
 		driver = dmd_driver::type_id::create("driver",this);
 		monitor = dmd_monitor::type_id::create("monitor",this);
-		ap = new("ap",this);
+		dut_ap = new("dut_ap",this);
+		exp_ap = new("exp_ap",this);
 	endfunction
 	
 	function void connect_phase(uvm_phase phase);
@@ -36,8 +38,10 @@ class dmd_agent extends uvm_agent;
 		//connect driver and sequencer
 		driver.seq_item_port.connect(seqr.seq_item_export);
 		
+		driver.ap.connect(monitor.ap_fifo.analysis_export);
+		
 		// connect monitor to agent output
-		monitor.ap_out.connect(ap);
+		monitor.ap_out.connect(dut_ap);
 	endfunction
 
 endclass

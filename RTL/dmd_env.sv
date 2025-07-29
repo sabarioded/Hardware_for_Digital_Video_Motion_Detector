@@ -14,7 +14,7 @@ class dmd_env extends uvm_env;
   dmd_scoreboard  scoreboard;
 
   // constructor
-  function new(string name = "dmd_env", uvm_codmdonent parent = null);
+  function new(string name = "dmd_env", uvm_component parent = null);
 	super.new(name, parent);
   endfunction: new
 
@@ -29,7 +29,7 @@ class dmd_env extends uvm_env;
   virtual function void connect_phase(uvm_phase phase);
 	super.connect_phase(phase);
 	// connect monitor analysis port to scoreboard
-	agent.ap.connect(scoreboard.ap);
+	agent.dut_ap.connect(scoreboard.ap);
   endfunction: connect_phase
 
 endclass: dmd_env
