@@ -20,8 +20,8 @@ class mmg_sequence extends uvm_sequence #(mmg_trans);
 		super.new(name);
 		wr_flag = 1;
 		num_frames  = 10;
-		width       = 32;
-		height      = 24;
+		width       = 352;
+		height      = 288;
 		threshold_val = 12;
 	endfunction
 	
@@ -35,11 +35,11 @@ class mmg_sequence extends uvm_sequence #(mmg_trans);
 				   {get_name(), $sformatf("_f%0d_p%0d", f, i)});
 			 start_item(tr);
 			   assert(tr.randomize() with {
-				 enable         == 1;
-				 pixel[7:0]   == 8'h00;
-				 pixel[15:8] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-				 pixel[23:16] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-				 pixel[31:24] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+				 enable     ==1; // dist { 1 := 90, 0 := 10};//  == 1;
+				 pixel[7:0]  dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
+				 pixel[15:8] dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
+				 pixel[23:16] dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
+				 pixel[31:24] dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
 				 last_in_frame  == (i == width*height-1);
 				 wr_background == wr_flag;
 				 threshold == threshold_val;
@@ -75,7 +75,7 @@ class mmg_sequence extends uvm_sequence #(mmg_trans);
 			 start_item(tr);
 			   assert(tr.randomize() with {
 				 enable         == 1;
-				 pixel[7:0]   == 8'h00;
+				 pixel[7:0]   == 8'hff;
 				 pixel[15:8]  == 8'hff;
 				 pixel[23:16] == 8'hff;
 				 pixel[31:24] == 8'hff;

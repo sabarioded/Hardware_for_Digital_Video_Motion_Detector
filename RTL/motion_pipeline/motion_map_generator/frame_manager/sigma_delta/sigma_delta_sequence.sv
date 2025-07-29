@@ -38,7 +38,7 @@ class sigma_delta_sequence extends uvm_sequence #(sigma_delta_transaction);
 	  finish_item(tr);
 
 	  // === Randomized Stimulus ===
-	  repeat (100000) begin
+	  repeat (1000000) begin
 		tr = sigma_delta_transaction::type_id::create("tr");
 		start_item(tr);
 		if (!tr.randomize() with {

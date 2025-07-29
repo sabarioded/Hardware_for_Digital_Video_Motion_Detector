@@ -106,91 +106,159 @@ module frame_manager (
 	.variance_next (variance_next)
   );
 
-  // --------------------------------------------------
-  // Assertions (excluded from synthesis)
-  // --------------------------------------------------
-`ifndef SYNTHESIS
-`ifdef ENABLE_FM_ASSERTIONS
+  `ifndef SYNTHESIS
+  `ifdef ENABLE_FM_ASSERTIONS
 
-  // [1] After reset, rd_addr and wr_addr should be 0
-  always @(posedge clk) begin
-    if (rst) begin
-      #1;
-      assert (rd_addr == 0 && wr_addr == 0)
-        else `uvm_fatal("FM_A1",
-             $sformatf("[%0t] FM_A1: rd_addr=%0d wr_addr=%0d not reset to zero",
-                       $time, rd_addr, wr_addr));
-    end
-  end
+	// -----------------------------------------
+	// [1] Reset sanity: rd_addr/wr_addr/curr/prev cleared
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (rst) begin
+		#1;
+		assert (rd_addr == 0 && wr_addr == 0)
+		  else `uvm_fatal("FM_A1",
+			$sformatf("[%0t] FM_A1: rd_addr=%0d wr_addr=%0d not reset to zero",
+					  $time, rd_addr, wr_addr));
+		assert (curr_pixel == 0 && prev_pixel == 0)
+		  else `uvm_fatal("FM_A2",
+			$sformatf("[%0t] FM_A2: curr_pixel=%0d prev_pixel=%0d not reset to zero",
+					  $time, curr_pixel, prev_pixel));
+	  end
+	end
 
-  // [2] After reset, curr_pixel and prev_pixel should be 0
-  always @(posedge clk) begin
-    if (rst) begin
-      #1;
-      assert (curr_pixel == 8'd0 && prev_pixel == 8'd0)
-        else `uvm_fatal("FM_A2",
-             $sformatf("[%0t] FM_A2: curr_pixel=%0d prev_pixel=%0d not reset to zero",
-                       $time, curr_pixel, prev_pixel));
-    end
-  end
+	// -----------------------------------------
+	// [2] Enable gating: when disabled, no state change
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && !enable) begin
+		#1;
+		assert ($stable(rd_addr) && $stable(wr_addr) &&
+				$stable(curr_pixel) && $stable(prev_pixel))
+		  else `uvm_fatal("FM_A_EN",
+			$sformatf("[%0t] FM_A_EN: State changed while enable=0", $time));
+	  end
+	end
 
-  // [3] curr_pixel matches grayscale conversion of prior input
-  always @(posedge clk) begin
-    if (!rst && enable) begin
-      #1;
-      assert (curr_pixel == $past(gray_pixel[15:8]))
-        else `uvm_fatal("FM_A3",
-             $sformatf("[%0t] FM_A3: curr_pixel=%0d expected=%0d",
-                       $time, curr_pixel, $past(gray_pixel[15:8])));
-    end
-  end
+	// -----------------------------------------
+	// [3] Grayscale conversion correctness
+	// (Uses Y = 0.299R + 0.587G + 0.114B ? scaled)
+	// -----------------------------------------
+	logic [15:0] expected_gray;
+	always_comb begin
+	  expected_gray = pixel[31:24]*8'd77 + pixel[23:16]*8'd150 + pixel[15:8]*8'd29;
+	end
 
-  // [4] prev_pixel matches frame buffer content
-  always @(posedge clk) begin
-    if (!rst && enable) begin
-      #1;
-      assert (prev_pixel == frame_buff[$past(rd_addr)])
-        else `uvm_fatal("FM_A4",
-             $sformatf("[%0t] FM_A4: prev_pixel=%0d expected=frame_buff[%0d]=%0d",
-                       $time, prev_pixel, $past(rd_addr), frame_buff[$past(rd_addr)]));
-    end
-  end
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (curr_pixel == $past(expected_gray[15:8]))
+		  else `uvm_fatal("FM_A3",
+			$sformatf("[%0t] FM_A3: curr_pixel=%0d expected_gray=%0d",
+					  $time, curr_pixel, $past(expected_gray[15:8])));
+	  end
+	end
 
-  // [5] wr_addr should equal past rd_addr when enabled
-  always @(posedge clk) begin
-    if (!rst && enable) begin
-      #1;
-      assert (wr_addr == $past(rd_addr))
-        else `uvm_fatal("FM_A5",
-             $sformatf("[%0t] FM_A5: wr_addr=%0d expected=%0d",
-                       $time, wr_addr, $past(rd_addr)));
-    end
-  end
+	// -----------------------------------------
+	// [4] prev_pixel matches previous frame buffer content
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (prev_pixel == frame_buff[$past(rd_addr)])
+		  else `uvm_fatal("FM_A4",
+			$sformatf("[%0t] FM_A4: prev_pixel=%0d expected frame_buff[%0d]=%0d",
+					  $time, prev_pixel, $past(rd_addr), frame_buff[$past(rd_addr)]));
+	  end
+	end
 
-  // [6] Frame buffer write correctness
-  always @(posedge clk) begin
-    if (!rst && enable) begin
-      #1;
-      assert (frame_buff[$past(wr_addr)] == $past(wr_buff))
-        else `uvm_fatal("FM_A6",
-             $sformatf("[%0t] FM_A6: frame_buff[%0d]=%0d expected=%0d",
-                       $time, $past(wr_addr), frame_buff[$past(wr_addr)], $past(wr_buff)));
-    end
-  end
+	// -----------------------------------------
+	// [5] wr_addr must always equal the previous rd_addr when enabled
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (wr_addr == $past(rd_addr))
+		  else `uvm_fatal("FM_A5",
+			$sformatf("[%0t] FM_A5: wr_addr=%0d expected=%0d",
+					  $time, wr_addr, $past(rd_addr)));
+	  end
+	end
 
-  // [7] rd_addr reset on last_in_frame
-  always @(posedge clk) begin
-    if (!rst && enable && last_in_frame) begin
-      #1;
-      assert (rd_addr == 0)
-        else `uvm_fatal("FM_A7",
-             $sformatf("[%0t] FM_A7: rd_addr=%0d not reset on last_in_frame",
-                       $time, rd_addr));
-    end
-  end
+	// -----------------------------------------
+	// [6] Frame buffer write matches wr_buff
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (frame_buff[$past(wr_addr)] == $past(wr_buff))
+		  else `uvm_fatal("FM_A6",
+			$sformatf("[%0t] FM_A6: frame_buff[%0d]=%0d expected wr_buff=%0d",
+					  $time, $past(wr_addr), frame_buff[$past(wr_addr)], $past(wr_buff)));
+	  end
+	end
 
-`endif // ENABLE_FM_ASSERTIONS
-`endif // SYNTHESIS
+	// -----------------------------------------
+	// [7] Frame boundary: rd_addr must reset at last_in_frame
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable && last_in_frame) begin
+		#1;
+		assert (rd_addr == 0)
+		  else `uvm_fatal("FM_A7",
+			$sformatf("[%0t] FM_A7: rd_addr=%0d not reset at frame boundary",
+					  $time, rd_addr));
+	  end
+	end
+
+	// -----------------------------------------
+	// [8] rd_addr/wr_addr wrap-around must stay within valid FRAME_SIZE
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (rd_addr < FRAME_SIZE && wr_addr < FRAME_SIZE)
+		  else `uvm_fatal("FM_A8",
+			$sformatf("[%0t] FM_A8: Address out of bounds rd=%0d wr=%0d FRAME_SIZE=%0d",
+					  $time, rd_addr, wr_addr, FRAME_SIZE));
+	  end
+	end
+
+	// -----------------------------------------
+	// [9] Background/variance integration sanity
+	// The buffers must always be updated with background_next/variance_next
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && enable) begin
+		#1;
+		assert (background_buffer[$past(wr_addr)] == $past(background_next))
+		  else `uvm_fatal("FM_A9_BG",
+			$sformatf("[%0t] FM_A9: background_buffer[%0d]=%0d expected=%0d",
+					  $time, $past(wr_addr),
+					  background_buffer[$past(wr_addr)], $past(background_next)));
+
+		assert (variance_buffer[$past(wr_addr)] == $past(variance_next))
+		  else `uvm_fatal("FM_A9_VAR",
+			$sformatf("[%0t] FM_A9: variance_buffer[%0d]=%0d expected=%0d",
+					  $time, $past(wr_addr),
+					  variance_buffer[$past(wr_addr)], $past(variance_next)));
+	  end
+	end
+
+	// -----------------------------------------
+	// [10] When not enable, background_next and variance_next are stable
+	// -----------------------------------------
+	always @(posedge clk) begin
+	  if (!rst && !enable) begin
+		#1;
+		assert ($stable(background_next) && $stable(variance_next))
+		  else `uvm_fatal("FM_A10",
+			$sformatf("[%0t] FM_A10: background_next/variance_next changed while enable=0", $time));
+	  end
+	end
+
+  `endif // ENABLE_FM_ASSERTIONS
+  `endif // SYNTHESIS
+
 
 
 endmodule: frame_manager

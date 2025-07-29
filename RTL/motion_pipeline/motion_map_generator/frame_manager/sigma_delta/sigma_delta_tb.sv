@@ -25,69 +25,119 @@ module sigma_delta_tb;
     .variance_next  (vif.variance_next)
   );
 
-  //--------------------------------------------------------------------------------
-  // Functional coverage: covergroup declared at clock edge
-  //--------------------------------------------------------------------------------
   covergroup cg_sigma_delta @(posedge vif.clk);
-    option.per_instance = 1;
+	  option.per_instance = 1;
+	  option.name = "sigma_delta_cov";
 
-    // Control signals
-    rst_cp:          coverpoint vif.rst           { bins active = {1}; bins inactive = {0}; }
-    enable_cp:       coverpoint vif.enable        { bins on = {1};    bins off = {0}; }
-    wr_bg_cp:        coverpoint vif.wr_background { bins write = {1}; bins no_write = {0}; }
+	  // --------------------------------------------------------
+	  // 1. CONTROL SIGNALS
+	  // --------------------------------------------------------
 
-    // Data inputs
-    curr_pixel_cp: coverpoint vif.curr_pixel {
-      bins min       = {8'd0};
-      bins max       = {8'd255};
-      bins low       = {[8'd1:8'd63]};
-      bins mid       = {[8'd64:8'd191]};
-      bins high      = {[8'd192:8'd254]};
-    }
+	  enable_cp: coverpoint vif.enable {
+		bins active = {1};
+		bins idle   = {0};
+	  }
 
-    background_cp: coverpoint vif.background {
-      bins min       = {8'd0};
-      bins max       = {8'd255};
-      bins quarter   = {[8'd1:8'd63]};
-      bins middle    = {[8'd64:8'd191]};
-      bins top_quart = {[8'd192:8'd254]};
-    }
+	  wr_bg_cp: coverpoint vif.wr_background {
+		bins write_req = {1};
+		bins no_write  = {0};
+	  }
 
-    variance_cp: coverpoint vif.variance {
-      bins min       = {8'd2};            // initial value
-      bins low     = {[8'd3:8'd4]};     // near lower limit
-      bins mid       = {[8'd5:8'd250]};   // typical range
-      bins high     = {[8'd251:8'd253]}; // near upper limit
-      bins max       = {8'd255};
-    }
+	  ctrl_cross: cross enable_cp, wr_bg_cp {
+		bins write_when_enabled = binsof(enable_cp.active) && binsof(wr_bg_cp.write_req);
+		bins idle_no_write      = binsof(enable_cp.idle)   && binsof(wr_bg_cp.no_write);
+	  }
 
-    // Internal delta for motion logic
-    diff_cp: coverpoint ((vif.curr_pixel > vif.background)
-                         ? vif.curr_pixel - vif.background
-                         : vif.background - vif.curr_pixel) {
-      bins zero      = {0};
-      bins low     = {[1:8]};
-      bins mid    = {[9:128]};
-      bins high     = {[129:255]};
-    }
+	  // --------------------------------------------------------
+	  // 2. PIXEL INPUTS
+	  // --------------------------------------------------------
+	  curr_pixel_cp: coverpoint vif.curr_pixel {
+		bins zero    = {8'd0};
+		bins low     = {[1:63]};
+		bins mid     = {[64:191]};
+		bins high    = {[192:254]};
+		bins max     = {8'd255};
+	  }
 
-    // Output updates with meaningful ranges
-    bg_next_cp: coverpoint vif.background_next {
-      bins min       = {8'd0};
-      bins max       = {8'd255};
-      bins low       = {[8'd1:8'd63]};
-      bins mid       = {[8'd64:8'd191]};
-      bins high      = {[8'd192:8'd254]};
-    }
-    variance_next_cp: coverpoint vif.variance_next {
-      bins min       = {8'd2};            // reset default
-      bins low    = {[8'd3:8'd4]};     // near lower limit
-      bins mid       = {[8'd5:8'd250]};   // typical operation
-      bins high     = {[8'd251:8'd253]}; // near upper limit
-      bins max       = {8'd255};
-    }
+	  background_cp: coverpoint vif.background {
+		bins zero    = {8'd0};
+		bins low     = {[1:63]};
+		bins mid     = {[64:191]};
+		bins high    = {[192:254]};
+		bins max     = {8'd255};
+	  }
 
-  endgroup
+	  variance_cp: coverpoint vif.variance {
+		bins min     = {8'd2};              // startup default
+		bins near_low = {[3:4]};            // just above lower bound
+		bins normal  = {[5:250]};           // normal operating band
+		bins high = {[251:255]};       // close to saturation
+	  }
+
+	  // --------------------------------------------------------
+	  // 3. INTERNAL MOTION DELTA (absolute difference)
+	  // --------------------------------------------------------
+	  diff_cp: coverpoint ((vif.curr_pixel > vif.background)
+						  ?  vif.curr_pixel - vif.background
+						   : vif.background - vif.curr_pixel) {
+		bins exact_zero   = {0};             // identical pixel vs background
+		bins very_small   = {[1:4]};         // tiny diff
+		bins small_        = {[5:20]};        // minor changes
+		bins medium_       = {[21:100]};      // normal motion
+		bins large_        = {[101:200]};     // significant change
+		bins very_large   = {[201:255]};     // extreme change
+	  }
+
+	  // --------------------------------------------------------
+	  // 4. OUTPUTS - NEXT BACKGROUND AND VARIANCE
+	  // --------------------------------------------------------
+	  bg_next_cp: coverpoint vif.background_next {
+		bins zero    = {8'd0};
+		bins low     = {[1:63]};
+		bins mid     = {[64:191]};
+		bins high    = {[192:254]};
+		bins max     = {8'd255};
+	  }
+
+	  variance_next_cp: coverpoint vif.variance_next {
+		bins min         = {8'd2};          // initial value
+		bins near_low    = {[3:4]};
+		bins normal      = {[5:150]};
+		bins near_high   = {[151:255]};
+	  }
+
+	  // --------------------------------------------------------
+	  // 5. IMPORTANT CROSSES
+	  // --------------------------------------------------------
+
+	  // Cross pixel difference vs variance  see triggering conditions
+	  diff_vs_variance_cross: cross diff_cp, variance_cp {
+		bins diff_gt_var = binsof(diff_cp.large_) && binsof(variance_cp.normal);
+		bins diff_lt_var = binsof(diff_cp.small_) && binsof(variance_cp.high);
+		bins diff_eq_var = binsof(diff_cp.medium_) && binsof(variance_cp.normal);
+	  }
+
+	  // Cross curr_pixel vs background  test all relative relationships
+	  pixel_bg_relation_cross: cross curr_pixel_cp, background_cp {
+		bins equal_pixels = binsof(curr_pixel_cp.zero) && binsof(background_cp.zero);
+		bins lower_bg     = binsof(curr_pixel_cp.low)  && binsof(background_cp.high);
+		bins higher_bg    = binsof(curr_pixel_cp.high) && binsof(background_cp.low);
+	  }
+
+	  // Cross variance_next vs diff to ensure coverage of increment/decrement
+	  diff_vs_varnext_cross: cross diff_cp, variance_next_cp {
+		bins increment_event = binsof(diff_cp.large_) && binsof(variance_next_cp.near_high);
+		bins decrement_event = binsof(diff_cp.small_) && binsof(variance_next_cp.near_low);
+		bins steady_event    = binsof(diff_cp.exact_zero) && binsof(variance_next_cp.normal);
+	  }
+
+	  // Control + outputs cross (ensure writes only when enabled)
+	  control_output_cross: cross enable_cp, wr_bg_cp, bg_next_cp {
+		bins valid_write = binsof(enable_cp.active) && binsof(wr_bg_cp.write_req);
+		bins ignored_write = binsof(enable_cp.idle) && binsof(wr_bg_cp.write_req);
+	  }
+
+	endgroup
 
   // Instantiate and sample the covergroup
   cg_sigma_delta coverage_inst;

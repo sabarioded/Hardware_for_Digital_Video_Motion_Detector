@@ -48,44 +48,97 @@ module motion_detector_tb;
 	run_test("motion_detector_test");
   end
 
-  //------------------------------------------------------------------------------
-  // Functional coverage: covergroup sampling on clock edge
-  //------------------------------------------------------------------------------
   covergroup cg_md @(posedge vif.clk);
-	option.per_instance = 1;
+	  option.per_instance = 1;
+	  option.name = "motion_detector_cov";
 
-	// Reset and enable
-	rst_cp:      coverpoint vif.rst        { bins active = {1}; bins inactive = {0}; }
-	enable_cp:   coverpoint vif.enable     { bins on     = {1}; bins off      = {0}; }
+	  // --------------------------------------------------
+	  // 1. Control States
+	  // --------------------------------------------------
 
-	// Pixel inputs
-	curr_cp:     coverpoint vif.curr_pixel { bins min={8'd0}; bins max={8'd255}; bins mid={[8'd1:8'd254]}; }
-	prev_cp:     coverpoint vif.prev_pixel { bins min={8'd0}; bins max={8'd255}; bins mid={[8'd1:8'd254]}; }
+	  enable_cp: coverpoint vif.enable {
+		bins enabled    = {1};
+		bins disabled   = {0};
+	  }
+	  
+	  // --------------------------------------------------
+	  // 2. Pixel Inputs (basic value ranges)
+	  // --------------------------------------------------
+	  curr_pixel_cp: coverpoint vif.curr_pixel {
+		bins min_val  = {8'd0};
+		bins low_val  = {[8'd1:8'd50]};
+		bins mid_val  = {[8'd51:8'd200]};
+		bins high_val = {[8'd201:8'd254]};
+		bins max_val  = {8'd255};
+	  }
 
-	// Internal difference signals
-	pixel_diff_cp: coverpoint ((vif.curr_pixel>vif.prev_pixel)
-							  ? vif.curr_pixel-vif.prev_pixel
-							  : vif.prev_pixel-vif.curr_pixel) {
-		bins zero = {8'd0};
-		bins low = {[8'd1:8'd20]};
-		bins mid = {[8'd21:8'd100]};
-		bins high = {[8'd101:8'd200]};
-		bins very_high = {[8'd201:8'd255]};
-	}
-	bg_diff_cp:    coverpoint ((vif.curr_pixel>vif.background)
-							  ? vif.curr_pixel-vif.background
-							  : vif.background-vif.curr_pixel) {
-	  bins zero = {8'd0};
-	  bins low = {[8'd1:8'd20]};
-	  bins mid = {[8'd21:8'd100]};
-	  bins high = {[8'd101:8'd200]};
-	  bins very_high = {[8'd201:8'd255]};
-	}
+	  prev_pixel_cp: coverpoint vif.prev_pixel {
+		bins min_val  = {8'd0};
+		bins low_val  = {[8'd1:8'd50]};
+		bins mid_val  = {[8'd51:8'd200]};
+		bins high_val = {[8'd201:8'd254]};
+		bins max_val  = {8'd255};
+	  }
 
-	// Output coverage
-	motion_cp:   coverpoint vif.motion_detected { bins no={0}; bins yes={1}; }
+	  pixel_value_cross: cross curr_pixel_cp, prev_pixel_cp;
 
-  endgroup
+	  // --------------------------------------------------
+	  // 3. Pixel Difference Metrics (absolute diff)
+	  // --------------------------------------------------
+	  pixel_diff_cp: coverpoint (
+		(vif.curr_pixel > vif.prev_pixel) ?
+		  (vif.curr_pixel - vif.prev_pixel) :
+		  (vif.prev_pixel - vif.curr_pixel)
+	  ) {
+		bins zero_diff     = {8'd0};
+		bins very_small    = {[1:5]};
+		bins small_         = {[6:20]};
+		bins medium_        = {[21:50]};
+		bins large_         = {[51:150]};
+		bins very_large    = {[151:255]};
+	  }
+
+	  bg_diff_cp: coverpoint (
+		(vif.curr_pixel > vif.background) ?
+		  (vif.curr_pixel - vif.background) :
+		  (vif.background - vif.curr_pixel)
+	  ) {
+		bins zero_diff     = {8'd0};
+		bins very_small    = {[1:5]};
+		bins small_         = {[6:20]};
+		bins medium_        = {[21:50]};
+		bins large_         = {[51:150]};
+		bins very_large    = {[151:255]};
+	  }
+
+	  diff_cross: cross pixel_diff_cp, bg_diff_cp;
+
+	  // --------------------------------------------------
+	  // 4. Output Behavior
+	  // --------------------------------------------------
+	  motion_detected_cp: coverpoint vif.motion_detected {
+		bins motion_yes = {1};
+		bins motion_no  = {0};
+	  }
+
+	  // --------------------------------------------------
+	  // 5. Functional Crosses
+	  // --------------------------------------------------
+	  diff_motion_cross: cross pixel_diff_cp, motion_detected_cp {
+		bins correct_detect    = binsof(pixel_diff_cp.large_) && binsof(motion_detected_cp.motion_yes);
+		bins correct_no_motion = binsof(pixel_diff_cp.zero_diff) && binsof(motion_detected_cp.motion_no);
+		bins borderline_yes = binsof(pixel_diff_cp.medium_) && binsof(motion_detected_cp.motion_yes);
+		bins borderline_no  = binsof(pixel_diff_cp.medium_) && binsof(motion_detected_cp.motion_no);
+
+	  }
+
+	  control_motion_cross: cross enable_cp, motion_detected_cp {
+		bins disabled_should_be_no = binsof(enable_cp.disabled) && binsof(motion_detected_cp.motion_no);
+	  }
+
+	endgroup
+
+
 
   // Instantiate and rely on implicit sampling via @(posedge vif.clk)
   cg_md md_cov = new();

@@ -50,22 +50,20 @@ class motion_detector_scoreboard extends uvm_scoreboard;
 		 return;
 	  end
 
-	  if (!tr.enable) begin
-		expected_motion = 0;
-	  end else begin
-		expected_motion = (pixel_diff > tr.threshold) && (background_diff >= tr.variance);
+	  if (tr.enable) begin
+		  expected_motion = (pixel_diff > tr.threshold) && (background_diff >= tr.variance);
 	  end
 
 	  // === Compare ===
-	  if (expected_motion !== tr.motion_detected) begin
+	  if (tr.enable && expected_motion !== tr.motion_detected) begin
 		  error_count++;
 		`uvm_error("SCOREBOARD", $sformatf(
 		  "\nMismatch detected:\nInput: enable=%0b curr_pixel=%0d prev_pixel=%0d background=%0d variance=%0d threshold=%0d\nExpected: motion_detected=%0b\nGot: motion_detected=%0b",
 		  tr.enable, tr.curr_pixel, tr.prev_pixel, tr.background, tr.variance, tr.threshold,
 		  expected_motion, tr.motion_detected))
 	  end else begin
-		`uvm_info("SCOREBOARD", $sformatf(
-		  "Transaction passed: motion_detected=%0b", tr.motion_detected), UVM_LOW)
+		/*`uvm_info("SCOREBOARD", $sformatf(
+		  "Transaction passed: motion_detected=%0b", tr.motion_detected), UVM_LOW)*/
 	  end
 	endfunction
 

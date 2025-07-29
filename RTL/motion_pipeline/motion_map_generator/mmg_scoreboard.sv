@@ -40,8 +40,8 @@ class mmg_scoreboard extends uvm_scoreboard;
 	  error_count = 0;
 
 	  // use the values you set
-	  width  = 32;
-	  height = 24;
+	  width  = 352;
+	  height = 288;
 
 	  // allocate & clear buffers
 	  fm_map = new[width * height];

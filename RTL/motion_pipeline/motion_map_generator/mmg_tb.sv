@@ -44,32 +44,60 @@ module mmg_tb;
 	run_test("mmg_test");
   end
 
-  //------------------------------------------------------------------------------
-  // Functional coverage: covergroup sampling on clock edge
-  //------------------------------------------------------------------------------
   covergroup cg_mmg @(posedge vif.clk);
-	option.per_instance = 1;
+	  option.per_instance = 1;
+	  option.goal = 100;  // Optional: define a target coverage goal
 
-	// Control signals
-	rst_cp:           coverpoint vif.rst            { bins active   = {1}; bins inactive = {0}; }
-	enable_cp:        coverpoint vif.enable         { bins on       = {1}; bins off      = {0}; }
-	last_frame_cp:    coverpoint vif.last_in_frame  { bins start    = {1}; bins ongoing  = {0}; }
-	wr_bg_cp:         coverpoint vif.wr_background  { bins write    = {1}; bins no_write = {0}; }
+	  // --------------------------------------------------------
+	  // Basic control signal coverage
+	  // --------------------------------------------------------
+	  last_frame_cp: coverpoint vif.last_in_frame  { bins boundary   = {1}; bins midframe   = {0}; }
+	  wr_bg_cp:      coverpoint vif.wr_background  { bins write_bg   = {1}; bins no_write   = {0}; }
 
-	// Pixel value (32-bit) in bins (LSB always 0)
-	pixel_cp: coverpoint vif.pixel {
-	  bins zero          = {32'h00000000};                        
-	  bins quarter       = {[32'h00000100:32'h3FFFFF00]};         
-	  bins half          = {[32'h40000000:32'h7FFFFF00]};         
-	  bins three_quarter = {[32'h80000000:32'hBFFFFF00]};         
-	  bins full          = {[32'hC0000000:32'hFFFFFE00]};         
-	  bins max           = {32'hFFFFFF00};            
-	}
+	  // --------------------------------------------------------
+	  // Threshold coverage (important for motion sensitivity)
+	  // --------------------------------------------------------
+	  /*threshold_cp: coverpoint vif.threshold {
+		bins low_     = {[1:10]};         // Very sensitive
+		bins medium_  = {[11:128]};       // Typical case
+		bins high_    = {[129:255]};      // Very strict
+		bins zero    = {0};              // Corner case
+		bins max     = {255};            // Extreme case
+	  }*/
 
-	// Output detection
-	motion_cp:       coverpoint vif.motion_detected { bins no = {0}; bins yes = {1}; }
+	  // --------------------------------------------------------
+	  // Pixel value coverage (coarse-grained buckets)
+	  // --------------------------------------------------------
+	  pixel_cp: coverpoint vif.pixel {
+		bins black     = {32'h00000000};
+		bins dark      = {[32'h00000001 : 32'h0FFFFFFF]};
+		bins mid       = {[32'h10000000 : 32'h7FFFFFFF]};
+		bins bright    = {[32'h80000000 : 32'hEFFFFFFF]};
+		bins white     = {32'hFFFFFFFF};
+	  }
 
-  endgroup
+	  // --------------------------------------------------------
+	  // Motion detection output coverage
+	  // --------------------------------------------------------
+	  motion_cp: coverpoint vif.motion_detected { bins detected = {1}; bins idle = {0}; }
+
+	  // --------------------------------------------------------
+	  // CROSS COVERAGE for meaningful combinations
+	  // --------------------------------------------------------
+
+	  // 1. Cross between wr_background and motion_detected
+	  wr_motion_x: cross wr_bg_cp, motion_cp;
+
+	  // 2. Cross between threshold ranges & motion_detected
+	 // threshold_motion_x: cross threshold_cp, motion_cp;
+
+	  // 3. Cross between frame boundary and motion detection
+	  frame_motion_x: cross last_frame_cp, motion_cp;
+
+	  // 4. Cross between pixel brightness and motion detection
+	  pixel_motion_x: cross pixel_cp, motion_cp;
+
+	endgroup
 
   // Instantiate and sample coverage
   cg_mmg mmg_coverage;

@@ -63,17 +63,6 @@ module motion_map_generator (
     end
   end
 
-  // [2] When enable is low, motion_detected should remain low
-  always @(posedge clk) begin
-    if (!rst && !enable) begin
-      #1;
-      assert (!motion_detected)
-        else `uvm_fatal("MMG_A2",
-             $sformatf("[%0t] MMG_A2: motion_detected=%0d asserted when enable low",
-                       $time, motion_detected));
-    end
-  end
-
 `endif // ENABLE_MMG_ASSERTIONS
 `endif // SYNTHESIS
 

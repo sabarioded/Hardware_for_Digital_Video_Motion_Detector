@@ -75,15 +75,15 @@ class motion_detector_sequence extends uvm_sequence #(motion_detector_transactio
 		tr.variance = 10; // motion should be false
 		start_item(tr); finish_item(tr);
 		
-		repeat(10000) begin
+		repeat(1000000) begin
 			tr = motion_detector_transaction::type_id::create("tr");
 			start_item(tr);
 			if (!tr.randomize() with {
 			  enable        dist { 1 := 99, 0 := 1 };
-			  curr_pixel    dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-			  prev_pixel    dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-			  background    dist { [0:20] := 5, [21:234] := 90, [235:255] := 5 };
-			  variance      dist { [2:20] := 5, [21:234] := 90, [235:255] := 5 };
+			  curr_pixel    dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
+			  prev_pixel    dist { [0:20] := 20, [21:235] := 60, [236:255] := 20 };
+			  background    dist { [0:20] := 20, [21:234] := 60, [235:255] := 20 };
+			  variance      dist { [2:20] := 20, [21:234] := 60, [235:255] := 20 };
 			}) begin
 			  `uvm_warning("SEQUENCE", "Randomization failed!");
 			end

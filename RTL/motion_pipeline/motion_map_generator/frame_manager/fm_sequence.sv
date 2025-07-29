@@ -18,9 +18,9 @@ class fm_sequence extends uvm_sequence#(fm_trans);
 	function new(string name = "fm_sequence");
 	  super.new(name);
 	  wr_flag = 1;
-	  num_frames  = 100;
-	  width       = 32;
-	  height      = 24;
+	  num_frames  = 10;
+	  width       = 352;
+	  height      = 288;
 	endfunction
 
 	virtual task body();
@@ -33,11 +33,11 @@ class fm_sequence extends uvm_sequence#(fm_trans);
 				{get_name(), $sformatf("_f%0d_p%0d", f, i)});
 		  start_item(tr);
 			assert(tr.randomize() with {
-			  enable         == 1;
-			  pixel[7:0]   == 8'h00;
-			  pixel[15:8] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-			  pixel[23:16] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
-			  pixel[31:24] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+			  enable     ==   1;
+			  pixel[7:0]   dist { [0:20] := 10, [21:235] := 20, [236:255] := 70 };
+			  pixel[15:8] dist { [0:20] := 10, [21:235] := 20, [236:255] := 70 };
+			  pixel[23:16] dist { [0:20] := 10, [21:235] := 20, [236:255] := 70 };
+			  pixel[31:24] dist { [0:20] := 10, [21:235] := 20, [236:255] := 70};
 			  last_in_frame  == (i == width*height-1);
 			  wr_background == wr_flag;
 			});
@@ -45,6 +45,44 @@ class fm_sequence extends uvm_sequence#(fm_trans);
 		end
 		wr_flag = 0;
 	  end
+	  
+	  for (int f = 0; f < num_frames; f++) begin
+		  for (int i = 0; i < width*height; i++) begin
+			// create and drive transaction
+			tr = fm_trans::type_id::create(
+				  {get_name(), $sformatf("_f%0d_p%0d", f, i)});
+			start_item(tr);
+			  assert(tr.randomize() with {
+				enable     ==   1;
+				pixel[7:0]   dist { [0:20] := 5, [21:235] := 5, [236:255] := 90 };
+				pixel[15:8] dist { [0:20] := 5, [21:235] := 5, [236:255] := 90 };
+				pixel[23:16] dist { [0:20] := 5, [21:235] := 5, [236:255] := 90 };
+				pixel[31:24] dist { [0:20] := 5, [21:235] := 5, [236:255] := 90};
+				last_in_frame  == (i == width*height-1);
+				wr_background == wr_flag;
+			  });
+			finish_item(tr);
+		  end
+	  end
+	  
+	  for (int f = 0; f < num_frames; f++) begin
+		  for (int i = 0; i < width*height; i++) begin
+			// create and drive transaction
+			tr = fm_trans::type_id::create(
+				  {get_name(), $sformatf("_f%0d_p%0d", f, i)});
+			start_item(tr);
+			  assert(tr.randomize() with {
+				enable        ==1; //dist{ 1:= 90, 0 := 10};
+				pixel[7:0]  dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+				pixel[15:8] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+				pixel[23:16] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+				pixel[31:24] dist { [0:20] := 10, [21:235] := 80, [236:255] := 10 };
+				last_in_frame  == (i == width*height-1);
+				wr_background == wr_flag;
+			  });
+			finish_item(tr);
+		  end
+		end
 	endtask
   endclass
 
