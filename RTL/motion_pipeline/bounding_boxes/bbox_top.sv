@@ -158,7 +158,6 @@ end
 				2'b01: bank_select <= 2'b10; // Was writing to bank1, next write to bank2
 				2'b10: bank_select <= 2'b11; // Was writing to bank2, next write to bank3
 				2'b11: bank_select <= 2'b00; // Was writing to bank3, next write to bank0
-				default: bank_select <= 2'b00; // Safety
 			endcase
 		end
 	end
@@ -217,9 +216,6 @@ end
 					end else begin
 						filter_state <= IDLE; // All labels processed, return to IDLE
 					end
-				end
-				default: begin
-					//filter_state <= IDLE; // Safety
 				end
 			endcase
 		end
