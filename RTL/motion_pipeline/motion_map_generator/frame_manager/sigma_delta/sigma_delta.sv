@@ -51,7 +51,10 @@ module sigma_delta (
 	  end
 
 	  // === VARIANCE UPDATE ===
-	  if (diff > variance) begin
+	  if (wr_background) begin
+		  variance_next   <= 8'd2;
+		end
+	  else if (diff > variance) begin
 		variance_next <= (variance > 8'd253) ? 8'd255 : variance + 2;
 	  end
 	  else if (diff < variance) begin
@@ -151,7 +154,7 @@ module sigma_delta (
 
 	// Variance increment (+2 but saturate at 255)
 	always @(posedge clk) begin
-	  if (!rst && enable && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) > variance )) begin
+	  if (!rst && enable && !wr_background && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) > variance )) begin
 		#1;
 		assert (variance_next ==
 				((variance > 8'd253) ? 8'd255 : variance + 2))
@@ -163,7 +166,7 @@ module sigma_delta (
 
 	// Variance decrement (-2 but clamp at 2)
 	always @(posedge clk) begin
-	  if (!rst && enable && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) < variance )) begin
+	  if (!rst && enable && !wr_background && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) < variance )) begin
 		#1;
 		assert (variance_next ==
 				((variance < 8'd4) ? 8'd2 : variance - 2))
@@ -175,7 +178,7 @@ module sigma_delta (
 
 	// Variance no-change
 	always @(posedge clk) begin
-	  if (!rst && enable && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) == variance )) begin
+	  if (!rst && enable && !wr_background && ( (curr_pixel > background ? curr_pixel - background : background - curr_pixel) == variance )) begin
 		#1;
 		assert (variance_next == variance)
 		  else `uvm_fatal("SD_VAR3",

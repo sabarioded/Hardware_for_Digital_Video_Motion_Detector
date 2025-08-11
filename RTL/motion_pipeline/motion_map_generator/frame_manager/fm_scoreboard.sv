@@ -111,7 +111,10 @@ class fm_scoreboard extends uvm_scoreboard;
 			  (background[idx] - tr.curr_pixel);
 
 	  expected_var_next = variance[idx];
-	  if (diff > variance[idx]) begin
+	  if (tr.wr_background) begin
+		  variance[idx] = 8'd2;
+	  end
+	  else if (diff > variance[idx]) begin
 		 variance[idx] = (variance[idx] > 253) ? 8'd255 : variance[idx] + 2;
 	  end
 	  else if (diff < variance[idx]) begin

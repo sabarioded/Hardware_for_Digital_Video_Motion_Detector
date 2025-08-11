@@ -69,11 +69,13 @@ module frame_manager (
   always_ff @(posedge clk or posedge rst) begin
 	if (rst) begin
 	  wr_addr <= '0;
+	  `ifndef SYNTHESIS
 	  for (int i = 0; i < FRAME_SIZE; i++) begin
 		frame_buff[i]      <= 8'd0;
 		background_buffer[i] <= 8'd0;
 		variance_buffer[i]   <= 8'd2;
 	  end
+	  `endif // SYNTHESIS
 	end else if (enable) begin
 	  frame_buff[wr_addr]       <= wr_buff;
 	  // integrate sigma-delta outputs into buffers

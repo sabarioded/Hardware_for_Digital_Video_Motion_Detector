@@ -71,8 +71,10 @@ class sigma_delta_scoreboard extends uvm_scoreboard;
 	diff = (tr.curr_pixel > tr.background) ? (tr.curr_pixel - tr.background) :
 			(tr.background - tr.curr_pixel);
 
-
-	if (diff > tr.variance) begin
+	if (tr.wr_background) begin
+		expected.variance_next = 8'd2;
+	  end
+	else if (diff > tr.variance) begin
 	  expected.variance_next = (tr.variance > 253) ? 8'd255 : tr.variance + 2;
 	end
 	else if (diff < tr.variance) begin
