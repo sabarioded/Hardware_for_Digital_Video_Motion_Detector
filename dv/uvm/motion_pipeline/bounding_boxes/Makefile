@@ -3,7 +3,7 @@ UVM_VERBOSITY = UVM_MEDIUM
 CFLAGS = full64
 	
 VCS = vcs -sverilog -kdb +warn=noOBSV2G -full64 -timescale=1ns/1ns \
-        -debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
+		-debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
 	+define+UVM_OBJECT_MUST_HAVE_CONSTRUCTOR \
 	+incdir+$(UVM_HOME)/src $(UVM_HOME)/src/uvm.sv \
 	-cm_cond allops+anywidth+event -cm_noconst \
@@ -18,23 +18,22 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_MMG_ASSERTIONS \
+	$(VCS) +define+ENABLE_BBOX_ASSERTIONS \
 	  +incdir+. \
-	  motion_map_generator.sv \
-	  frame_manager/frame_manager.sv \
-	  frame_manager/sigma_delta/sigma_delta.sv \
-	  motion_detector/motion_detector.sv \
-	  mmg_if.sv \
-	  mmg_trans.sv \
-	  mmg_sequence.sv \
-	  mmg_sequencer.sv \
-	  mmg_driver.sv \
-	  mmg_monitor.sv \
-	  mmg_scoreboard.sv \
-	  mmg_agent.sv \
-	  mmg_env.sv \
-	  mmg_test.sv \
-	  mmg_tb.sv \
+	  ../../../../rtl/motion_pipeline/bounding_boxes/labeler/labler.sv \
+	  ../../../../rtl/motion_pipeline/bounding_boxes/label_merger/label_merger.sv \
+	  ../../../../rtl/motion_pipeline/bounding_boxes/bbox_top.sv \
+	  bbox_if.sv \
+	  bbox_trans.sv \
+	  bbox_sequencer.sv \
+	  bbox_sequence.sv \
+	  bbox_driver.sv \
+	  bbox_monitor.sv \
+	  bbox_scoreboard.sv \
+	  bbox_agent.sv \
+	  bbox_env.sv \
+	  bbox_test.sv \
+	  bbox_tb.sv \
 	  -l compile.log
 	  
 run:

@@ -20,16 +20,16 @@ x: comp run
 comp:
 	$(VCS) +define+ENABLE_DMD_ASSERTIONS \
 	  +incdir+. \
-	  motion_pipeline/bounding_boxes/labeler/labler.sv \
-	  motion_pipeline/bounding_boxes/label_merger/label_merger.sv \
-	  motion_pipeline/bounding_boxes/bbox_top.sv \
-	  motion_pipeline/motion_map_generator/motion_map_generator.sv \
-	  motion_pipeline/motion_map_generator/frame_manager/frame_manager.sv \
-	  motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
-	  motion_pipeline/motion_map_generator/motion_detector/motion_detector.sv \
-	  motion_pipeline/motion_pipeline.sv \
-	  addr_manager.sv \
-	  Digital_Motion_Detector.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/labeler/labler.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/label_merger/label_merger.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/bbox_top.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/motion_map_generator.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/frame_manager/frame_manager.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/motion_detector/motion_detector.sv \
+	  ../../../rtl/motion_pipeline/motion_pipeline.sv \
+	  ../../../rtl/addr_manager.sv \
+	  ../../../rtl/Digital_Motion_Detector.sv \
 	  dmd_if.sv \
 	  dmd_trans.sv \
 	  dmd_sequencer.sv \

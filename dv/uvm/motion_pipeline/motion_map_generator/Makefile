@@ -18,24 +18,27 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_MD_ASSERTIONS \
-		+incdir+. \
-        motion_detector.sv \
-        motion_detector_if.sv \
-        motion_detector_transaction.sv \
-        motion_detector_sequence.sv \
-        motion_detector_sequencer.sv \
-        motion_detector_driver.sv \
-        motion_detector_monitor.sv \
-        motion_detector_scoreboard.sv \
-        motion_detector_agent.sv \
-        motion_detector_env.sv \
-        motion_detector_test.sv \
-        motion_detector_tb.sv
+	$(VCS) +define+ENABLE_MMG_ASSERTIONS \
+	  +incdir+. \
+	  ../../../../rtl/motion_pipeline/motion_map_generator/motion_map_generator.sv \
+	  ../../../../rtl/motion_pipeline/motion_map_generator/frame_manager/frame_manager.sv \
+	  ../../../../rtl/motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
+	  ../../../../rtl/motion_pipeline/motion_map_generator/motion_detector/motion_detector.sv \
+	  mmg_if.sv \
+	  mmg_trans.sv \
+	  mmg_sequence.sv \
+	  mmg_sequencer.sv \
+	  mmg_driver.sv \
+	  mmg_monitor.sv \
+	  mmg_scoreboard.sv \
+	  mmg_agent.sv \
+	  mmg_env.sv \
+	  mmg_test.sv \
+	  mmg_tb.sv \
+	  -l compile.log
 	  
 run:
 	$(SIMV)
 	
 clean:
 	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvm
-

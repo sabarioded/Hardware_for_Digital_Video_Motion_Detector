@@ -3,7 +3,7 @@ UVM_VERBOSITY = UVM_MEDIUM
 CFLAGS = full64
 	
 VCS = vcs -sverilog -kdb +warn=noOBSV2G -full64 -timescale=1ns/1ns \
-		-debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
+        -debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
 	+define+UVM_OBJECT_MUST_HAVE_CONSTRUCTOR \
 	+incdir+$(UVM_HOME)/src $(UVM_HOME)/src/uvm.sv \
 	-cm_cond allops+anywidth+event -cm_noconst \
@@ -18,26 +18,24 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_BBOX_ASSERTIONS \
-	  +incdir+. \
-	  labeler/labler.sv \
-	  label_merger/label_merger.sv \
-	  bbox_top.sv \
-	  bbox_if.sv \
-	  bbox_trans.sv \
-	  bbox_sequencer.sv \
-	  bbox_sequence.sv \
-	  bbox_driver.sv \
-	  bbox_monitor.sv \
-	  bbox_scoreboard.sv \
-	  bbox_agent.sv \
-	  bbox_env.sv \
-	  bbox_test.sv \
-	  bbox_tb.sv \
-	  -l compile.log
+	$(VCS) +define+ENABLE_MD_ASSERTIONS \
+		+incdir+. \
+        ../../../../../rtl/motion_pipeline/motion_map_generator/motion_detector/motion_detector.sv \
+        motion_detector_if.sv \
+        motion_detector_transaction.sv \
+        motion_detector_sequence.sv \
+        motion_detector_sequencer.sv \
+        motion_detector_driver.sv \
+        motion_detector_monitor.sv \
+        motion_detector_scoreboard.sv \
+        motion_detector_agent.sv \
+        motion_detector_env.sv \
+        motion_detector_test.sv \
+        motion_detector_tb.sv
 	  
 run:
 	$(SIMV)
 	
 clean:
 	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvm
+

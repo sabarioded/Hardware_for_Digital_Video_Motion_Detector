@@ -18,20 +18,27 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_LABLER_ASSERTIONS \
+	$(VCS) +define+ENABLE_mp_ASSERTIONS \
 	  +incdir+. \
-	  labler.sv \
-	  labler_if.sv \
-	  labler_trans.sv \
-	  labler_sequence.sv \
-	  labler_sequencer.sv \
-	  labler_driver.sv \
-	  labler_monitor.sv \
-	  labler_scoreboard.sv \
-	  labler_agent.sv \
-	  labler_env.sv \
-	  labler_test.sv \
-	  labler_tb.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/labeler/labler.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/label_merger/label_merger.sv \
+	  ../../../rtl/motion_pipeline/bounding_boxes/bbox_top.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/motion_map_generator.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/frame_manager/frame_manager.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
+	  ../../../rtl/motion_pipeline/motion_map_generator/motion_detector/motion_detector.sv \
+	  ../../../rtl/motion_pipeline/motion_pipeline.sv \
+	  mp_if.sv \
+	  mp_trans.sv \
+	  mp_sequencer.sv \
+	  mp_sequence.sv \
+	  mp_driver.sv \
+	  mp_monitor.sv \
+	  mp_scoreboard.sv \
+	  mp_agent.sv \
+	  mp_env.sv \
+	  mp_test.sv \
+	  mp_tb.sv \
 	  -l compile.log
 	  
 run:

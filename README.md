@@ -1,141 +1,161 @@
 # Hardware for Digital Video Motion Detector
 
-This repository contains the final implementation and verification of a **Digital Video Motion Detector** project, developed and submitted as an academic hardware design project at the Technion – Israel Institute of Technology.
+![Platform](https://img.shields.io/badge/platform-ASIC%20%2F%20FPGA-green.svg)
+![Language](https://img.shields.io/badge/language-SystemVerilog%20%7C%20Python-blue.svg)
+![Verification](https://img.shields.io/badge/verification-UVM-orange.svg)
+![License](https://img.shields.io/badge/license-Educational-lightgrey.svg)
 
-The project focuses on designing a **hardware-oriented motion detection pipeline**, validating it using **UVM-based verification**, and supporting the design with **Python reference simulations** for algorithm exploration and verification alignment.
+## Table of Contents
 
-This README is based directly on the **final written report** and **final presentation** that were submitted with the project.
-
----
-
-## Project Motivation
-
-Motion detection is a core building block in many video-processing systems such as:
-- Surveillance cameras  
-- Smart traffic systems  
-- Embedded vision pipelines  
-
-The goal of this project was to:
-- Design a **realistic motion detection hardware block**
-- Implement the algorithm in a way that is suitable for RTL realization
-- Verify correctness using **industry-standard UVM methodology**
-- Compare hardware behavior against a software reference model
-
-![alt text](image.png)
----
-
-## High-Level Architecture
-
-The system processes video frames and produces a **binary motion map** highlighting regions where motion is detected.
-
-At a high level, the pipeline includes:
-1. Frame acquisition
-2. Background modeling
-3. Motion detection using a **Sigma-Delta algorithm**
-4. Motion map generation
-5. Bounding box extraction
-
-The design is structured as a pipeline to allow future expansion and optimization.
-
-![alt text](image-1.png)
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Algorithm](#algorithm)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Simulation & Verification](#simulation--verification)
+  - [Python Reference Model](#python-reference-model)
+- [Results](#results)
+- [License](#license)
 
 ---
 
-## Motion Detection Algorithm (Sigma-Delta)
+## Overview
 
-The motion detector is based on a **Sigma-Delta background subtraction algorithm**, chosen because it:
-- Is computationally lightweight
-- Uses only integer arithmetic
-- Is well suited for hardware implementation
+This project implements a **hardware-oriented Digital Video Motion Detector**. It was designed to bridge the gap between algorithmic motion detection and realistic RTL implementation.
 
-For each pixel:
-- A background estimate is maintained
-- The estimate is slowly updated toward the current pixel value
-- The absolute difference between the current pixel and background is compared against a threshold
-- Pixels exceeding the threshold are marked as motion
+Motion detection is a core building block in surveillance systems, smart traffic monitoring, and embedded vision pipelines. This design focuses on a lightweight, efficient pipeline validated using **industry-standard UVM methodology**.
 
-The algorithm operates on a frame-by-frame basis and produces a motion mask.
-
-![alt text](image-2.png)
+![Project Context](docs/image.png)
 
 ---
 
-## Bounding Box
+## Key Features
 
-After generating the binary motion map, the next stage of the pipeline is **bounding box extraction**.
+### Hardware Design
+*   **Efficient Pipeline:** Frame-based processing tailored for real-time video flow.
+*   **Modular RTL:** Clear separation between datapath and control using SystemVerilog.
+*   **Parameterized:** Configurable resolution and thresholding.
 
-The purpose of this block is to convert low-level pixel motion information into **higher-level spatial objects** that describe *where* motion is occurring in the frame. Instead of working with thousands of individual motion pixels, the system outputs rectangular regions that tightly enclose moving areas.
+### Algorithmic Core
+*   **Sigma-Delta Detection:** Integer-only algorithm suitable for hardware synthesis.
+*   **Background Modeling:** Dynamic background update mechanism.
+*   **Bounding Box Extraction:** Hardware-friendly logic to merge motion pixels into spatial regions.
 
-![alt text](image-3.png)
-
----
-
-## RTL Design
-
-The RTL implementation is written in **SystemVerilog** and structured in a modular way:
-- Clear separation between datapath and control
-- Frame-based processing model
-- Parameterized design where possible
-
-The motion detector can be integrated as a standalone block or as part of a larger video processing system.
+### Verification & Modeling
+*   **UVM Environment:** Comprehensive testbench with drivers, monitors, and scoreboards.
+*   **Python Reference:** Bit-accurate software model for algorithm exploration and verification.
 
 ---
 
-## Verification Methodology (UVM)
+## Architecture
 
-Verification is implemented using **Universal Verification Methodology (UVM)**.
+The system processes video frames to produce a **binary motion map** and high-level **bounding boxes**.
 
-The UVM environment includes:
-- Transactions representing pixel and frame data
-- Drivers that stimulate the DUT
-- Monitors that sample DUT outputs
-- Scoreboards that compare DUT results with expected behavior
-- Sequences and tests covering different motion scenarios
+![Pipeline Architecture](docs/image-1.png)
 
-The verification environment is designed to be **scalable and reusable**, following standard UVM best practices.
-
----
-
-## Python Simulation and Reference Model
-
-Alongside the RTL design, a **Python reference model** is provided to:
-- Prototype the motion detection algorithm
-- Generate expected motion maps
-- Compare software results against RTL outputs
-- Evaluate detection quality using metrics such as precision, recall, and F1 score
-
-The Python simulations were also used during development to tune algorithm parameters before RTL implementation.
+**Pipeline Stages:**
+1.  **Frame Acquisition:** Ingests video stream.
+2.  **Background Modeling:** Maintains a running estimate of the static background.
+3.  **Motion Detection:** Compares current frame to background (Sigma-Delta).
+4.  **Motion Map:** Generates a binary mask of moving pixels.
+5.  **Bounding Boxes:** Aggregates motion pixels into rectangular coordinates.
 
 ---
 
-## Results and Evaluation
+## Algorithm
 
-The final evaluation compares motion detection results across multiple test scenarios.
+### Sigma-Delta Background Subtraction
 
-Metrics used include:
-- Precision
-- Recall
-- F1 score
+The core engine uses a modified **Sigma-Delta** algorithm with a dual-condition check for robust detection. It maintains both a **Background** model and a **Variance (Sigma)** estimate.
 
-The results demonstrate that the hardware-oriented Sigma-Delta implementation successfully detects motion while maintaining reasonable accuracy, given the constraints of a hardware-friendly algorithm.
+**Motion Logic:**
+A pixel is marked as motion only if **both** conditions are met:
+1.  **Temporal Difference:** `|current - previous| > threshold` (Filters out slow changes)
+2.  **Background Deviation:** `|current - background| >= variance` (Filters out noise)
+
+**Update Logic:**
+*   **Background:** Incremented/Decremented by 1 towards current pixel.
+*   **Variance:** Incremented/Decremented by 2 towards the current deviation.
+
+![Sigma Delta Algorithm](docs/image-2.png)
+
+### Bounding Box Extraction
+
+The bounding box block converts unstructured motion pixels into spatial regions using a hardware-optimized **Connected Component Labeling (CCL)** approach.
+
+**Key Hardware Features:**
+*   **Single-Pass Labeling:** Assigns labels on-the-fly using a line buffer (checks Left/Top neighbors).
+*   **Ping-Pong Banking:** Uses 4 memory banks to pipeline the stages:
+    1.  **Accumulate:** Update min/max coordinates for each label.
+    2.  **Filter/Merge:** Merge overlapping bounding boxes.
+    3.  **Output:** Highlight pixel edges based on active boxes.
+    4.  **Clear:** Reset bank for reuse.
+
+![Bounding Box](docs/image-3.png)
 
 ---
 
-## Repository Contents
+## Project Structure
 
-Typical contents of this repository include:
-- RTL source files (SystemVerilog)
-- UVM testbench and verification components
-- Python simulation and reference model
-- Makefiles and scripts for simulation
+The repository is organized to separate Synthesizable RTL, Verification methods, and Documentation.
+
+```text
+.
+├── rtl/                                     # Synthesizable Design
+│   ├── Digital_Motion_Detector.sv           # Top Level
+│   ├── addr_manager.sv
+│   └── motion_pipeline/                     # Pipeline Stages
+│       ├── motion_map_generator/
+│       └── bounding_boxes/
+├── dv/                                      # Verification
+│   ├── uvm/                                 # UVM Testbenches
+│   │   ├── dmd/                             # Top-Level TB
+│   │   └── motion_pipeline/                 # Unit TBs
+│   └── python/                              # Reference Model
+│       ├── sim.py                           # Main simulation CLI
+│       └── Testcases/
+└── docs/                                    # Images & Documentation
+```
+
 ---
 
-## Author
+## Getting Started
 
-Developed as part of an academic hardware design and verification project.
+### Simulation & Verification
+
+To run the full UVM regression on the top-level design:
+
+```bash
+cd dv/uvm/dmd
+make x
+```
+
+This will compile the RTL and Testbench using VCS and run the default test case.
+
+### Python Reference Model
+
+The Python model serves as the "Golden Reference". You can run it via the unified CLI:
+
+```bash
+# General help
+python3 dv/python/sim.py --help
+
+# Run Sigma-Delta algorithm on all testcases
+python3 dv/python/sim.py run --algorithm sigma_delta
+
+# Create a video from output frames
+python3 dv/python/sim.py video output_folder/ result.mp4
+```
+
+---
+
+## Results
+
+Evaluation demonstrates that the hardware implementation successfully detects motion with reasonable accuracy (F1 Score, Precision, Recall) compared to software baselines, while fitting within hardware constraints.
 
 ---
 
 ## License
 
-This repository is provided for educational and demonstration purposes.
+This project was developed for academic purposes at the Technion – Israel Institute of Technology. Provided for educational and demonstration purposes.

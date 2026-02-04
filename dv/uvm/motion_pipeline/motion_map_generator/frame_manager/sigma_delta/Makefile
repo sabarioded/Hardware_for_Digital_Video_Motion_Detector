@@ -18,25 +18,21 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_FM_ASSERTIONS \
-	  +incdir+. \
-	  frame_manager.sv \
-	  sigma_delta/sigma_delta.sv \
-	  fm_if.sv \
-	  fm_trans.sv \
-	  fm_sequence.sv \
-	  fm_sequencer.sv \
-	  fm_driver.sv \
-	  fm_monitor.sv \
-	  fm_scoreboard.sv \
-	  fm_agent.sv \
-	  fm_env.sv \
-	  fm_test.sv \
-	  fm_tb.sv
-	  
+	$(VCS) +define+ENABLE_SIGMA_ASSERTIONS \
+		   +incdir+. ../../../../../../rtl/motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
+           sigma_delta_if.sv \
+           sigma_delta_transaction.sv \
+           sigma_delta_sequence.sv \
+           sigma_delta_sequencer.sv \
+           sigma_delta_driver.sv \
+           sigma_delta_monitor.sv \
+           sigma_delta_scoreboard.sv \
+           sigma_delta_agent.sv \
+           sigma_delta_env.sv \
+           sigma_delta_test.sv \
+           sigma_delta_tb.sv	
 run:
 	$(SIMV)
 	
 clean:
 	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvm
-

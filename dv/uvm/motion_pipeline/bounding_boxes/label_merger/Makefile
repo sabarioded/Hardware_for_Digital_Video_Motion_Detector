@@ -18,27 +18,20 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_mp_ASSERTIONS \
+	$(VCS) +define+ENABLE_LM_ASSERTIONS \
 	  +incdir+. \
-	  bounding_boxes/labeler/labler.sv \
-	  bounding_boxes/label_merger/label_merger.sv \
-	  bounding_boxes/bbox_top.sv \
-	  motion_map_generator/motion_map_generator.sv \
-	  motion_map_generator/frame_manager/frame_manager.sv \
-	  motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
-	  motion_map_generator/motion_detector/motion_detector.sv \
-	  motion_pipeline.sv \
-	  mp_if.sv \
-	  mp_trans.sv \
-	  mp_sequencer.sv \
-	  mp_sequence.sv \
-	  mp_driver.sv \
-	  mp_monitor.sv \
-	  mp_scoreboard.sv \
-	  mp_agent.sv \
-	  mp_env.sv \
-	  mp_test.sv \
-	  mp_tb.sv \
+	  ../../../../../rtl/motion_pipeline/bounding_boxes/label_merger/label_merger.sv \
+	  lm_if.sv \
+	  lm_trans.sv \
+	  lm_sequence.sv \
+	  lm_sequencer.sv \
+	  lm_driver.sv \
+	  lm_monitor.sv \
+	  lm_scoreboard.sv \
+	  lm_agent.sv \
+	  lm_env.sv \
+	  lm_test.sv \
+	  lm_tb.sv \
 	  -l compile.log
 	  
 run:

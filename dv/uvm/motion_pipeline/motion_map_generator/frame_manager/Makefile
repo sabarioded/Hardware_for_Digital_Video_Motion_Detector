@@ -3,7 +3,7 @@ UVM_VERBOSITY = UVM_MEDIUM
 CFLAGS = full64
 	
 VCS = vcs -sverilog -kdb +warn=noOBSV2G -full64 -timescale=1ns/1ns \
-		-debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
+        -debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
 	+define+UVM_OBJECT_MUST_HAVE_CONSTRUCTOR \
 	+incdir+$(UVM_HOME)/src $(UVM_HOME)/src/uvm.sv \
 	-cm_cond allops+anywidth+event -cm_noconst \
@@ -18,24 +18,25 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_LM_ASSERTIONS \
+	$(VCS) +define+ENABLE_FM_ASSERTIONS \
 	  +incdir+. \
-	  label_merger.sv \
-	  lm_if.sv \
-	  lm_trans.sv \
-	  lm_sequence.sv \
-	  lm_sequencer.sv \
-	  lm_driver.sv \
-	  lm_monitor.sv \
-	  lm_scoreboard.sv \
-	  lm_agent.sv \
-	  lm_env.sv \
-	  lm_test.sv \
-	  lm_tb.sv \
-	  -l compile.log
+	  ../../../../../rtl/motion_pipeline/motion_map_generator/frame_manager/frame_manager.sv \
+	  ../../../../../rtl/motion_pipeline/motion_map_generator/frame_manager/sigma_delta/sigma_delta.sv \
+	  fm_if.sv \
+	  fm_trans.sv \
+	  fm_sequence.sv \
+	  fm_sequencer.sv \
+	  fm_driver.sv \
+	  fm_monitor.sv \
+	  fm_scoreboard.sv \
+	  fm_agent.sv \
+	  fm_env.sv \
+	  fm_test.sv \
+	  fm_tb.sv
 	  
 run:
 	$(SIMV)
 	
 clean:
 	rm -rf coverage.vdb csrc DVEfiles inter.vpd simv simv.daidir ucli.key vc_hdrs.h vcs.log .inter.vpd.uvm
+

@@ -1,21 +1,166 @@
 from PIL import Image
-import subprocess
-import time
 import os
 import glob
+import re
 import numpy as np
 import cv2
-import os
 from sklearn.metrics import precision_score, recall_score, f1_score
 
+def ensure_dir(path):
+    """Create a directory if it does not already exist."""
+    os.makedirs(path, exist_ok=True)
+
+
+def extract_number(filename, regex, default=-1):
+    """Extract the first numeric group using a regex; return default if missing."""
+    match = re.search(regex, os.path.basename(filename))
+    return int(match.group(1)) if match else default
+
+
+def sorted_files(pattern, number_regex=None, default=-1):
+    """Return a sorted list of files, optionally using a numeric sort key."""
+    files = glob.glob(pattern)
+    if number_regex:
+        files.sort(key=lambda p: extract_number(p, number_regex, default))
+    else:
+        files.sort()
+    return files
+
+
+def _order_to_indices(order):
+    """Map channel letters (R, G, B) to indices in a 4-byte pixel order."""
+    if len(order) != 4:
+        raise ValueError("order must be 4 chars like 'RGB0' or 'RBG0'")
+    idx = {}
+    for ch in "RGB":
+        if ch not in order:
+            raise ValueError("order must include R, G, B")
+        idx[ch] = order.index(ch)
+    return idx
+
+
+def raw_bytes_to_rgb(raw_bytes, width, height, order="RGB0"):
+    """Convert raw bytes (4 bytes per pixel) into packed RGB bytes."""
+    expected = width * height * 4
+    if len(raw_bytes) != expected:
+        raise ValueError(f"Unexpected raw size: {len(raw_bytes)} bytes, expected {expected}")
+
+    idx = _order_to_indices(order)
+    rgb_data = bytearray()
+    for i in range(0, len(raw_bytes), 4):
+        base = i
+        rgb_data.extend([
+            raw_bytes[base + idx["R"]],
+            raw_bytes[base + idx["G"]],
+            raw_bytes[base + idx["B"]],
+        ])
+    return bytes(rgb_data)
+
+
+def raw_to_png(raw_path, png_path, width, height, order="RGB0"):
+    """Convert a raw frame file into a PNG image."""
+    with open(raw_path, "rb") as f:
+        raw_bytes = f.read()
+    rgb_bytes = raw_bytes_to_rgb(raw_bytes, width, height, order=order)
+    img = Image.frombytes("RGB", (width, height), rgb_bytes)
+    img.save(png_path)
+
+
+def convert_all_raw_to_png(raw_folder, width, height, order="RGB0", suffix="_reconstructed.png"):
+    """Convert all raw files in a folder to PNG images."""
+    raw_files = sorted_files(os.path.join(raw_folder, "*.raw"))
+    for raw_path in raw_files:
+        output_png = raw_path.replace(".raw", suffix)
+        try:
+            raw_to_png(raw_path, output_png, width, height, order=order)
+        except ValueError as exc:
+            print(f"Skipping {raw_path}: {exc}")
+
+
+def save_rgb_frame_as_raw(output_frame, width, height, output_folder, base_filename, frame_idx,
+                          order="RGB0", index_width=3):
+    """Save an RGB frame to a raw file with a configurable byte order."""
+    ensure_dir(output_folder)
+    raw_path = os.path.join(output_folder, f"{base_filename}_{frame_idx:0{index_width}d}.raw")
+
+    with open(raw_path, "wb") as f:
+        for y in range(height):
+            for x in range(width):
+                r, g, b = output_frame[y, x]
+                pixels = {"R": r, "G": g, "B": b, "0": 0}
+                f.write(bytes([
+                    pixels[order[0]],
+                    pixels[order[1]],
+                    pixels[order[2]],
+                    pixels[order[3]],
+                ]))
+
+
+def convert_images_to_raw(frames_folder, ext, order="RGB0", output_folder=None):
+    """Convert all images with extension ext in a folder into raw frames."""
+    if output_folder is None:
+        output_folder = os.path.join(frames_folder, "raw_rbg32")
+    ensure_dir(output_folder)
+
+    frame_paths = sorted_files(os.path.join(frames_folder, f"*.{ext}"))
+    for path in frame_paths:
+        img = Image.open(path).convert("RGB")
+        width, height = img.size
+        pixels = img.load()
+
+        raw_bytes = bytearray()
+        for y in range(height):
+            for x in range(width):
+                r, g, b = pixels[x, y]
+                pmap = {"R": r, "G": g, "B": b, "0": 0}
+                raw_bytes.extend([
+                    pmap[order[0]],
+                    pmap[order[1]],
+                    pmap[order[2]],
+                    pmap[order[3]],
+                ])
+
+        filename = os.path.splitext(os.path.basename(path))[0]
+        output_path = os.path.join(output_folder, f"{filename}.raw")
+        with open(output_path, "wb") as f:
+            f.write(raw_bytes)
+
+
+def pngs_to_video(frames_folder, output_path, fps=30, pattern="*.png", number_regex=None):
+    """Create a video from PNG frames in a folder."""
+    frame_files = sorted_files(os.path.join(frames_folder, pattern), number_regex=number_regex, default=float("inf"))
+    if not frame_files:
+        print("No PNG files found.")
+        return
+
+    first = cv2.imread(frame_files[0])
+    h, w, _ = first.shape
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+
+    for fn in frame_files:
+        frame = cv2.imread(fn)
+        out.write(frame)
+    out.release()
+    print(f"Video saved to: {output_path}")
+
+
+def hardware_friendly_closing(motion_map):
+    """Apply a 3x3 morphological closing on a binary motion map."""
+    kernel = np.ones((3, 3), np.uint8)
+    mm8 = (motion_map.astype(np.uint8) * 255)
+    closed = cv2.morphologyEx(mm8, cv2.MORPH_CLOSE, kernel)
+    return (closed > 0)
+
 def extract_frames(video_path, output_folder, prefix="frame"):
+    """Extract video frames into PNG files."""
     os.makedirs(output_folder, exist_ok=True)
 
     cap = cv2.VideoCapture(video_path)
     frame_idx = 0
 
     if not cap.isOpened():
-        print("❌ Error: Cannot open video.")
+        print("Error: Cannot open video.")
         return
 
     while True:
@@ -26,87 +171,22 @@ def extract_frames(video_path, output_folder, prefix="frame"):
         filename = f"{prefix}_{frame_idx:03}.png"
         path = os.path.join(output_folder, filename)
         cv2.imwrite(path, frame)
-        # print(f"✅ Saved: {path}")
+        # print(f" Saved: {path}")
         frame_idx += 1
 
     cap.release()
-    # print(f"\n🎉 Done! Extracted {frame_idx} frames to {output_folder}")
+    # print(f\"Done. Extracted {frame_idx} frames to {output_folder}\")
 
 def png_to_video(frames_folder, output_path, fps=30):
-    # Get all PNG frames
-    frame_files = sorted(glob.glob(os.path.join(frames_folder, '*.png')))
-
-    if not frame_files:
-        print("❌ No PNG files found.")
-        return
-
-    # Get frame size from the first image
-    first_frame = cv2.imread(frame_files[0])
-    height, width, _ = first_frame.shape
-
-    # Define video writer (codec, filename, FPS, resolution)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # or 'XVID' for .avi
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
-    for frame_file in frame_files:
-        frame = cv2.imread(frame_file)
-        out.write(frame)
-
-    out.release()
-    print(f"🎥 Video saved to: {output_path}")
+    pngs_to_video(frames_folder, output_path, fps=fps, pattern="*.png")
 
 def convert_png_to_raw(frames_folder):
+    """Convert PNG frames to raw files using RBG0 byte order."""
     output_folder = os.path.join(frames_folder, 'raw_rbg32')
-    os.makedirs(output_folder, exist_ok=True)
-
-    frame_paths = sorted(glob.glob(os.path.join(frames_folder, '*.png')))
-
-    for path in frame_paths:
-        img = Image.open(path).convert('RGB')
-        width, height = img.size
-        pixels = img.load()
-
-        raw_bytes = bytearray()
-        for y in range(height):
-            for x in range(width):
-                r, g, b = pixels[x, y]
-                raw_bytes.extend([r, b, g, 0x00])  # R, B, G, 0
-
-        filename = os.path.splitext(os.path.basename(path))[0]
-        output_path = os.path.join(output_folder, f'{filename}.raw')
-        with open(output_path, 'wb') as f:
-            f.write(raw_bytes)
-
-def save_rgb_frame_as_raw(output_frame, width, height, output_folder, base_filename, frame_idx):
-    output_path = os.path.join(output_folder, f"{base_filename}_{frame_idx:04d}.raw")
-    with open(output_path, 'wb') as f:
-        for y in range(height):
-            for x in range(width):
-                r, b, g = output_frame[y, x]
-                f.write(bytes([r, b, g, 0]))
-
-def convert_all_raw_to_png(raw_folder, width, height):
-    raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
-
-    for raw_path in raw_files:
-        with open(raw_path, 'rb') as f:
-            raw_bytes = f.read()
-
-        rgb_data = bytearray()
-        for i in range(0, len(raw_bytes), 4):
-            r = raw_bytes[i]
-            b = raw_bytes[i+1]
-            g = raw_bytes[i+2]
-            rgb_data.extend([r, g, b])
-
-        img = Image.frombytes('RGB', (width, height), bytes(rgb_data))
-
-        # Save as PNG with matching name
-        output_png = raw_path.replace('.raw', '_reconstructed.png')
-        img.save(output_png)
-        # print(f"✅ Reconstructed: {output_png}")
+    convert_images_to_raw(frames_folder, ext="png", order="RBG0", output_folder=output_folder)
 
 def filter_motion_box_manual(motion_map, min_neighbors=5):
+    """Apply a 3x3 neighbor count filter to suppress isolated motion pixels."""
     height, width = motion_map.shape
     filtered = np.zeros_like(motion_map, dtype=bool)
     for y in range(1, height - 1):
@@ -117,10 +197,11 @@ def filter_motion_box_manual(motion_map, min_neighbors=5):
     return filtered
 
 def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255, 0, 0)):
+    """Sigma-delta motion detection with frame differencing and box filtering."""
 
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 2:
-        print("❌ Not enough frames.")
+        print("Not enough frames.")
         return
 
     output_folder = os.path.join(raw_folder, 'sigma_delta')
@@ -231,9 +312,10 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
         gray_prev = gray.copy()
 
 def background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15, highlight_color=(255, 0, 0)):
+    """Background update with 3-frame differencing in grayscale."""
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 3:
-        print("❌ Not enough frames for 2-frame differencing.")
+        print("Not enough frames for 2-frame differencing.")
         return
 
     output_folder = os.path.join(raw_folder, 'background_and_3frames')
@@ -326,11 +408,12 @@ def background_and_3frames_grayscale(raw_folder, width, height, shift=4, thresho
         gray_buffer.pop(0) 
  
 def evaluate_motion_map(motion_map, expected_mask_path):
+    """Return precision/recall/F1 for a single motion map against a mask image."""
     expected_mask = np.array(Image.open(expected_mask_path).convert('L'))
     expected_binary = (expected_mask > 127).astype(np.uint8).flatten()
     predicted_binary = (motion_map > 0).astype(np.uint8).flatten()
 
-    # print(f"[DEBUG] Frame sums — Expected: {expected_binary.sum()}, Predicted: {predicted_binary.sum()}")
+    # print(f"[DEBUG] Frame sums - Expected: {expected_binary.sum()}, Predicted: {predicted_binary.sum()}")
 
     if expected_binary.sum() == 0 and predicted_binary.sum() <= 5:
         return 1.0, 1.0, 1.0
@@ -342,6 +425,7 @@ def evaluate_motion_map(motion_map, expected_mask_path):
     return precision, recall, f1
 
 def evaluate_all_motion_maps(motion_map_folder, ground_truth_folder, num_frames):
+    """Evaluate a sequence of motion maps against ground truth masks."""
     precisions, recalls, f1s = [], [], []
 
     for i in range(num_frames):
@@ -359,64 +443,27 @@ def evaluate_all_motion_maps(motion_map_folder, ground_truth_folder, num_frames)
         recalls.append(recall)
         f1s.append(f1)
 
-        # print(f"Frame {i:03} — Precision: {precision:.2f}, Recall: {recall:.2f}, F1: {f1:.2f}")
+        # print(f"Frame {i:03} - Precision: {precision:.2f}, Recall: {recall:.2f}, F1: {f1:.2f}")
 
-    print(f"\n🎯 AVERAGE over {len(precisions)} frames:")
+    print(f"\n AVERAGE over {len(precisions)} frames:")
     print(f"Precision: {np.mean(precisions):.2f}")
     print(f"Recall:    {np.mean(recalls):.2f}")
     print(f"F1 Score:  {np.mean(f1s):.2f}")
 
 def convert_bmp_to_raw(frames_folder):
-    output_folder = os.path.join(frames_folder, 'raw_rbg32')
-    os.makedirs(output_folder, exist_ok=True)
-
-    frame_paths = sorted(glob.glob(os.path.join(frames_folder, '*.bmp')))
-
-    for path in frame_paths:
-        img = Image.open(path).convert('RGB')
-        width, height = img.size
-        pixels = img.load()
-
-        raw_bytes = bytearray()
-        for y in range(height):
-            for x in range(width):
-                r, g, b = pixels[x, y]
-                raw_bytes.extend([r, b, g, 0x00])  # R, B, G, 0
-
-        filename = os.path.splitext(os.path.basename(path))[0]
-        output_path = os.path.join(output_folder, f'{filename}.raw')
-        with open(output_path, 'wb') as f:
-            f.write(raw_bytes)
+    """Convert BMP frames into raw RGB0 files."""
+    convert_images_to_raw(frames_folder, ext="bmp", order="RGB0")
 
 def convert_jpg_to_raw(frames_folder):
-    output_folder = os.path.join(frames_folder, 'raw_rbg32')
-    os.makedirs(output_folder, exist_ok=True)
+    """Convert JPG frames into raw RGB0 files."""
+    convert_images_to_raw(frames_folder, ext="jpg", order="RGB0")
 
-    frame_paths = sorted([f for f in os.listdir(frames_folder) if f.lower().endswith(".jpg")])
-
-    for filename in frame_paths:
-        path = os.path.join(frames_folder, filename)
-        img = Image.open(path).convert('RGB')
-        width, height = img.size
-        pixels = img.load()
-
-        raw_bytes = bytearray()
-        for y in range(height):
-            for x in range(width):
-                r, g, b = pixels[x, y]
-                raw_bytes.extend([r, b, g, 0x00])  # R, B, G, 0 format
-
-        frame_index = int(''.join(filter(str.isdigit, filename)))  # extract number from filename
-        output_path = os.path.join(output_folder, f"frame_{frame_index:03}.raw")
-
-        with open(output_path, 'wb') as f:
-            f.write(raw_bytes)
-    
 def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_color=(255, 0, 0)):
+    """Sigma-delta motion detection using 3-frame differencing."""
 
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 3:
-        print("❌ Not enough frames for 3-frame differencing.")
+        print("Not enough frames for 3-frame differencing.")
         return
 
     output_folder = os.path.join(raw_folder, 'sigma_delta_3frames')
@@ -501,6 +548,7 @@ def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_co
         gray_prev1 = gray.copy()
     
 def compute_gradients(img1, img2):
+    """Compute spatial (x, y) and temporal gradients between frames."""
     sobel_x = np.array([[-1, 0, 1],
                         [-2, 0, 2],
                         [-1, 0, 1]], dtype=np.int16)
@@ -515,6 +563,7 @@ def compute_gradients(img1, img2):
     return I_x, I_y, I_t
 
 def lucas_kanade_flow(prev_gray, gray, motion_magnitude_threshold):
+    """Estimate optical flow using a 3x3 Lucas-Kanade window."""
     I_x, I_y, I_t = compute_gradients(prev_gray, gray)
 
     h, w = gray.shape
@@ -543,10 +592,11 @@ def lucas_kanade_flow(prev_gray, gray, motion_magnitude_threshold):
     return motion_map
 
 def optical_flow_motion_detection(raw_folder, width, height, highlight_color=(255, 0, 0)):
+    """Detect motion using optical flow and a magnitude threshold."""
 
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 2:
-        print("❌ Not enough frames for Optical Flow.")
+        print("Not enough frames for optical flow.")
         return
 
     output_folder = os.path.join(raw_folder, 'optical_flow')
@@ -619,29 +669,8 @@ def filter_motion_median_manual(motion_map):
 
     return filtered
 
-def hardware_friendly_closing(motion_map):
-    """
-    Simulate hardware-friendly 3x3 closing: dilation then erosion.
-    Input: motion_map (2D np.array, dtype=bool or uint8)
-    Output: closed_map (same shape)
-    """
-
-    # Ensure input is binary (0 or 1)
-    motion_map = (motion_map > 0).astype(np.uint8)
-
-    # Define 3x3 kernel
-    kernel = np.ones((3, 3), np.uint8)
-
-    # Step 1: Dilation (expand motion regions)
-    dilated = cv2.dilate(motion_map, kernel, iterations=1)
-
-    # Step 2: Erosion (shrink back to solidify shapes)
-    closed = cv2.erode(dilated, kernel, iterations=1)
-
-    # Return as boolean map
-    return closed > 0
-
 def median_filter_3x3_window(pixels):
+    """Return the median of a 3x3 window represented as a flat list of 9 values."""
     a = list(pixels)
 
     def swap(i, j):
@@ -659,9 +688,10 @@ def median_filter_3x3_window(pixels):
     return a[4]
 
 def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_color=(255, 0, 0)):
+    """Sigma-delta motion detection with additional filtering and cleanup steps."""
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 2:
-        print("❌ Not enough frames.")
+        print("Not enough frames.")
         return
 
     output_folder = os.path.join(raw_folder, 'sigma_delta_improved')
@@ -748,7 +778,8 @@ def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_c
         #### Step 8: Update Previous Frame
         gray_prev = gray.copy()
 
-def test(current_test,frames_folder,ground_truth_folder,num_frames):
+def test(current_test, frames_folder, ground_truth_folder, num_frames):
+    """Run a single test case for the selected algorithm and evaluate results."""
     convert_bmp_to_raw(frames_folder)
 
     # Detect width and height
@@ -792,6 +823,13 @@ def test(current_test,frames_folder,ground_truth_folder,num_frames):
             height=height,
             highlight_color=(255, 0, 0)
         )
+    elif(current_test == 'sigma_delta_labeler'):
+        sigma_delta_motion_detection_labeler(
+            raw_folder=raw_folder,
+            width=width,
+            height=height,
+            highlight_color=(255, 0, 0)
+        )
 
 
     # Convert output to PNG
@@ -802,14 +840,15 @@ def test(current_test,frames_folder,ground_truth_folder,num_frames):
     png_to_video(output_folder, video_folder, fps=30)
     
     evaluate_all_motion_maps(
-    motion_map_folder=os.path.join(raw_folder, current_test),
-    ground_truth_folder=ground_truth_folder,
-    num_frames=num_frames
+        motion_map_folder=os.path.join(raw_folder, current_test),
+        ground_truth_folder=ground_truth_folder,
+        num_frames=num_frames
     )
  
  
 
 def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixels=20, max_boxes=8):
+    """Scanline-based bounding box merge with limited box capacity."""
     height, width = motion_map.shape
     boxes = np.zeros((max_boxes, 4), dtype=np.int16)  # [x_min, y_min, x_max, y_max]
     box_valid = np.zeros(max_boxes, dtype=bool)
@@ -845,7 +884,7 @@ def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixe
                             inserted = True
                             break
                     if not inserted:
-                        # All boxes full — evict smallest if new box is larger
+                        # All boxes full - evict smallest if new box is larger
                         new_area = (x_end - x_start + 1)
                         min_area = float('inf')
                         min_idx = -1
@@ -876,31 +915,291 @@ def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixe
 
 
  
-def main():
-    selected_algorithm = 'sigma_delta'  # Change here if you want to run another algorithm
+def label_components(motion_map, max_labels=255):
+    """
+    Two-pass CC labeler with at most `max_labels` (255) distinct labels.
+    Any component after 255 is dropped (stays label 0).
+    Returns:
+      labels: uint8 array of shape motion_map.shape
+      parent: dict for union-find equivalences
+    """
+    h, w = motion_map.shape
+    labels = np.zeros((h, w), dtype=np.uint8)
+    parent = {}
+    next_label = 1
 
-    test_cases = [
-        ('test1',  300),
-        ('test2',  272),
-        ('test3',  525),
-        ('test4',  300),
-        ('test5',  225),
-        ('test6',  250),
-        ('test7',  250),
-        ('test8',  300),
-        ('test9',  275),
-        ('test10', 400)
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    # First pass: assign provisional labels (uint8, cap at max_labels)
+    for y in range(h):
+        for x in range(w):
+            if not motion_map[y, x]:
+                continue
+
+            # check west & north
+            nbrs = []
+            if x>0  and labels[y, x-1]>0: nbrs.append(labels[y, x-1])
+            if y>0  and labels[y-1, x]>0: nbrs.append(labels[y-1, x])
+
+            if not nbrs:
+                if next_label <= max_labels:
+                    lbl = next_label
+                    parent[lbl] = lbl
+                    next_label += 1
+                else:
+                    # overflow -> treat as background
+                    lbl = 0
+            else:
+                lbl = min(nbrs)
+                for n in nbrs:
+                    if n!=lbl:
+                        union(lbl, n)
+
+            labels[y, x] = lbl
+
+    # Flatten the UF tree
+    for lbl in list(parent):
+        parent[lbl] = find(lbl)
+
+    return labels, parent
+
+def extract_bboxes_from_labels(labels, parent, min_pixels=0, max_boxes=255):
+    """Compute bounding boxes for connected components given label equivalences."""
+    h, w = labels.shape
+    bboxes = {}
+    counts = {}
+
+    for y in range(h):
+        for x in range(w):
+            lbl = labels[y, x]
+            if lbl == 0:
+                continue
+            root = parent.get(lbl, lbl)
+            if root not in bboxes:
+                bboxes[root] = [x, y, x, y]
+                counts[root] = 1
+            else:
+                xmin, ymin, xmax, ymax = bboxes[root]
+                bboxes[root] = [
+                    min(xmin, x),
+                    min(ymin, y),
+                    max(xmax, x),
+                    max(ymax, y),
+                ]
+                counts[root] += 1
+
+    boxes = [
+        (xmin, ymin, xmax, ymax)
+        for root, (xmin, ymin, xmax, ymax) in bboxes.items()
+        if counts[root] >= min_pixels
     ]
+    boxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
+    return boxes[:max_boxes]
 
-    for test_name, num_frames in test_cases:
-        print(f"\n🔍 Running {test_name.upper()} with {selected_algorithm}")
-        test(
-            current_test=selected_algorithm,
-            frames_folder=f'simulations/Testcases/{test_name}',
-            ground_truth_folder=f'simulations/Testcases/{test_name}/ground_truth',
-            num_frames=num_frames
-        )
+def merge_overlapping_boxes(boxes):
+    """
+    Merge any boxes that overlap into a single enclosing box.
+    """
+    merged = []
+    while boxes:
+        x0, y0, x1, y1 = boxes.pop(0)
+        i = 0
+        while i < len(boxes):
+            bx0, by0, bx1, by1 = boxes[i]
+            # if they overlap (or touch)
+            if not (bx1 < x0 or bx0 > x1 or by1 < y0 or by0 > y1):
+                # merge into the current box
+                x0 = min(x0, bx0)
+                y0 = min(y0, by0)
+                x1 = max(x1, bx1)
+                y1 = max(y1, by1)
+                boxes.pop(i)
+                # restart checking against the newly expanded box
+                i = 0
+            else:
+                i += 1
+        merged.append((x0, y0, x1, y1))
+    return merged
+
+def sigma_delta_motion_detection_labeler(raw_folder, width, height,
+                                         highlight_color=(255, 0, 0),
+                                         min_pixels=0,
+                                         max_boxes=255,
+                                         diff2_threshold=8):
+    """
+    Sigma-delta motion detection with labeler-based bounding boxes.
+    """
+    raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
+    if len(raw_files) < 2:
+        print("Not enough frames.")
+        return
+
+    output_folder = os.path.join(raw_folder, 'sigma_delta_labeler')
+    os.makedirs(output_folder, exist_ok=True)
+
+    background = None
+    variation = None
+    gray_prev = None
+
+    for frame_idx, raw_path in enumerate(raw_files):
+        with open(raw_path, 'rb') as f:
+            raw_bytes = f.read()
+
+        frame = np.zeros((height, width, 3), dtype=np.uint8)
+        idx = 0
+        for y in range(height):
+            for x in range(width):
+                r = raw_bytes[idx]
+                g = raw_bytes[idx + 1]
+                b = raw_bytes[idx + 2]
+                frame[y, x] = [r, g, b]
+                idx += 4
+
+        r16 = frame[:, :, 0].astype(np.uint16)
+        g16 = frame[:, :, 1].astype(np.uint16)
+        b16 = frame[:, :, 2].astype(np.uint16)
+        gray = ((77 * r16 + 150 * g16 + 29 * b16) >> 8).astype(np.uint8)
+
+        if background is None:
+            background = gray.copy()
+            variation = np.full_like(gray, 2, dtype=np.uint8)
+            gray_prev = gray.copy()
+            continue
+
+        inc = gray > background
+        dec = gray < background
+        background[inc] += 1
+        background[dec] -= 1
+
+        diff = np.abs(gray.astype(np.int16) - background.astype(np.int16)).astype(np.uint8)
+        variation[diff > variation] += 2
+        variation[diff < variation] -= 2
+        variation = np.clip(variation, 2, 255)
+
+        diff2 = np.abs(gray.astype(np.int16) - gray_prev.astype(np.int16)).astype(np.uint8)
+        motion_map = (diff >= variation) & (diff2 > diff2_threshold)
+
+        labels, parent = label_components(motion_map, max_labels=255)
+        boxes = extract_bboxes_from_labels(labels, parent,
+                                           min_pixels=min_pixels,
+                                           max_boxes=max_boxes)
+        boxes = merge_overlapping_boxes(boxes)
+
+        output = frame.copy()
+        for x0, y0, x1, y1 in boxes:
+            output[y0:y1+1, x0] = highlight_color
+            output[y0:y1+1, x1] = highlight_color
+            output[y0, x0:x1+1] = highlight_color
+            output[y1, x0:x1+1] = highlight_color
+
+        save_rgb_frame_as_raw(output, width, height,
+                              output_folder, "sigma_delta", frame_idx)
+        np.save(os.path.join(output_folder, f"motion_map_{frame_idx:03}.npy"),
+                motion_map.astype(np.uint8))
+
+        gray_prev = gray.copy()
+
+def main():
+    """Run all test cases using the selected algorithm."""
+    import argparse
+    import os
+    import re
     
+    parser = argparse.ArgumentParser(description="Motion Detection Simulation CLI")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
+    # Command: run (SIMULATION)
+    parser_run = subparsers.add_parser("run", help="Run motion detection simulation")
+    parser_run.add_argument("--algorithm", default="sigma_delta", help="Algorithm to use (sigma_delta, etc.)")
+    
+    # Command: rename (from rename_utils.py)
+    parser_rename = subparsers.add_parser("rename", help="Rename files using regex")
+    parser_rename.add_argument("src", help="Source folder")
+    parser_rename.add_argument("dst", help="Destination folder")
+    parser_rename.add_argument("regex", help="Regex to capture number (e.g. '-(\\d+)')")
+    parser_rename.add_argument("format", help="New name format (e.g. 'frame_{number:03}.bmp')")
+    parser_rename.add_argument("--offset", type=int, default=-1, help="Number offset")
+    parser_rename.add_argument("--ext", help="Extension filter")
+
+    # Command: convert (raw to png)
+    parser_convert = subparsers.add_parser("convert", help="Convert RAW to PNG")
+    parser_convert.add_argument("folder", help="Folder containing RAW files")
+    parser_convert.add_argument("--width", type=int, required=True, help="Image width")
+    parser_convert.add_argument("--height", type=int, required=True, help="Image height")
+    parser_convert.add_argument("--order", default="RGB0", help="Byte order")
+
+    # Command: video (png to video)
+    parser_video = subparsers.add_parser("video", help="Create video from PNGs")
+    parser_video.add_argument("folder", help="Folder containing PNGs")
+    parser_video.add_argument("output", help="Output video path")
+    parser_video.add_argument("--fps", type=int, default=30, help="Frames per second")
+    parser_video.add_argument("--pattern", default="*.png", help="File pattern")
+    
+    args = parser.parse_args()
+    
+    if args.command == "run" or args.command is None:
+        # Default behavior: Run simulation
+        selected_algorithm = args.algorithm if args.command == "run" else "sigma_delta"
+        test_cases = [
+            ('test1',  300),
+            ('test2',  272),
+            ('test3',  525),
+            ('test4',  300),
+            ('test5',  225),
+            ('test6',  250),
+            ('test7',  250),
+            ('test8',  300),
+            ('test9',  275),
+            ('test10', 400)
+        ]
+
+        for test_name, num_frames in test_cases:
+            print(f"\nRunning {test_name.upper()} with {selected_algorithm}")
+            test(
+                current_test=selected_algorithm,
+                frames_folder=f'simulations/Testcases/{test_name}',
+                ground_truth_folder=f'simulations/Testcases/{test_name}/ground_truth',
+                num_frames=num_frames
+            )
+            
+    elif args.command == "rename":
+        # Inline implementation of rename_by_regex
+        os.makedirs(args.dst, exist_ok=True)
+        files = os.listdir(args.src)
+        for file_name in files:
+            if args.ext and not file_name.endswith(args.ext):
+                continue
+            match = re.search(args.regex, file_name)
+            if not match:
+                print(f"Skipping {file_name}, no number found.")
+                continue
+            number = int(match.group(1)) + args.offset
+            if number < 0:
+                print(f"Skipping {file_name}, new number would be negative.")
+                continue
+            new_name = args.format.format(number=number)
+            src_path = os.path.join(args.src, file_name)
+            dst_path = os.path.join(args.dst, new_name)
+            if os.path.exists(dst_path):
+                print(f"Skipping {file_name}, destination {new_name} already exists.")
+            else:
+                print(f"Renaming {file_name} -> {new_name}")
+                os.rename(src_path, dst_path)
+                
+    elif args.command == "convert":
+        convert_all_raw_to_png(args.folder, args.width, args.height, order=args.order)
+        
+    elif args.command == "video":
+        pngs_to_video(args.folder, args.output, fps=args.fps, pattern=args.pattern)
+
 if __name__ == '__main__':
     main()

@@ -3,7 +3,7 @@ UVM_VERBOSITY = UVM_MEDIUM
 CFLAGS = full64
 	
 VCS = vcs -sverilog -kdb +warn=noOBSV2G -full64 -timescale=1ns/1ns \
-        -debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
+		-debug_access+r+w+nomemcbk -debug_region+cell +vpi -debug_access+nomemcbk+dmptf -debug_region+cell \
 	+define+UVM_OBJECT_MUST_HAVE_CONSTRUCTOR \
 	+incdir+$(UVM_HOME)/src $(UVM_HOME)/src/uvm.sv \
 	-cm_cond allops+anywidth+event -cm_noconst \
@@ -18,19 +18,22 @@ SIMV = ./simv +UVM_VERBOSITY=$(UVM_VERBOSITY) \
 x: comp run
 	
 comp:
-	$(VCS) +define+ENABLE_SIGMA_ASSERTIONS \
-		   +incdir+. sigma_delta.sv \
-           sigma_delta_if.sv \
-           sigma_delta_transaction.sv \
-           sigma_delta_sequence.sv \
-           sigma_delta_sequencer.sv \
-           sigma_delta_driver.sv \
-           sigma_delta_monitor.sv \
-           sigma_delta_scoreboard.sv \
-           sigma_delta_agent.sv \
-           sigma_delta_env.sv \
-           sigma_delta_test.sv \
-           sigma_delta_tb.sv	
+	$(VCS) +define+ENABLE_LABLER_ASSERTIONS \
+	  +incdir+. \
+	  ../../../../../rtl/motion_pipeline/bounding_boxes/labeler/labler.sv \
+	  labler_if.sv \
+	  labler_trans.sv \
+	  labler_sequence.sv \
+	  labler_sequencer.sv \
+	  labler_driver.sv \
+	  labler_monitor.sv \
+	  labler_scoreboard.sv \
+	  labler_agent.sv \
+	  labler_env.sv \
+	  labler_test.sv \
+	  labler_tb.sv \
+	  -l compile.log
+	  
 run:
 	$(SIMV)
 	
