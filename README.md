@@ -208,4 +208,4 @@ For reference, a baseline method (Background Subtraction + Three-Frame Differenc
 
 ## License
 
-This project was developed for academic purposes at the Technion – Israel Institute of Technology. Provided for educational and demonstration purposes.
+This project was developed for academic purposes at the Technion – Israel Institute of Technology. Provided for educational and demonstration purposes. See `LICENSE`.
