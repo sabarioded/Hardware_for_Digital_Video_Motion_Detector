@@ -5,16 +5,21 @@
 ![Verification](https://img.shields.io/badge/verification-UVM-orange.svg)
 ![License](https://img.shields.io/badge/license-Educational-lightgrey.svg)
 
+Real-time hardware motion detection with AXI-Stream I/O, AXI-Lite configuration, and AXI memory access. Two-frame latency, UVM-verified, with a Python golden model.
+
 ## Table of Contents
 
 - [Overview](#overview)
+- [Quick Demo](#quick-demo)
 - [Key Features](#key-features)
 - [Architecture](#architecture)
 - [Algorithm](#algorithm)
+- [Verification](#verification)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
   - [Simulation & Verification](#simulation--verification)
   - [Python Reference Model](#python-reference-model)
+- [Python Requirements](#python-requirements)
 - [Results](#results)
 - [License](#license)
 
@@ -26,7 +31,15 @@ This project implements a **hardware-oriented Digital Video Motion Detector**. I
 
 Motion detection is a core building block in surveillance systems, smart traffic monitoring, and embedded vision pipelines. This design focuses on a lightweight, efficient pipeline validated using **industry-standard UVM methodology**.
 
-![Project Context](docs/image.png)
+---
+
+## Quick Demo
+
+| Single Object | Multiple Objects |
+| --- | --- |
+| ![Single Object Demo](docs/demo_single.png) | ![Multiple Objects Demo](docs/demo_multi.png) |
+
+Demo video: [docs/demo.mp4](docs/demo.mp4)
 
 ---
 
@@ -36,6 +49,7 @@ Motion detection is a core building block in surveillance systems, smart traffic
 *   **Efficient Pipeline:** Frame-based processing tailored for real-time video flow.
 *   **Modular RTL:** Clear separation between datapath and control using SystemVerilog.
 *   **Parameterized:** Configurable resolution and thresholding.
+*   **Standard Interfaces:** AXI-Stream for video, AXI-Lite for configuration, AXI for frame memory.
 
 ### Algorithmic Core
 *   **Sigma-Delta Detection:** Integer-only algorithm suitable for hardware synthesis.
@@ -52,7 +66,7 @@ Motion detection is a core building block in surveillance systems, smart traffic
 
 The system processes video frames to produce a **binary motion map** and high-level **bounding boxes**.
 
-![Pipeline Architecture](docs/image-1.png)
+![System Block Diagram](docs/architecture_system.png)
 
 **Pipeline Stages:**
 1.  **Frame Acquisition:** Ingests video stream.
@@ -65,9 +79,9 @@ The system processes video frames to produce a **binary motion map** and high-le
 
 ## Algorithm
 
-### Sigma-Delta Background Subtraction
+### Sigma-Delta + Two-Frame Differencing
 
-The core engine uses a modified **Sigma-Delta** algorithm with a dual-condition check for robust detection. It maintains both a **Background** model and a **Variance (Sigma)** estimate.
+The core engine uses a modified **Sigma-Delta** algorithm combined with **two-frame differencing**. It maintains both a **Background** model and a **Variance (Sigma)** estimate.
 
 **Motion Logic:**
 A pixel is marked as motion only if **both** conditions are met:
@@ -78,7 +92,7 @@ A pixel is marked as motion only if **both** conditions are met:
 *   **Background:** Incremented/Decremented by 1 towards current pixel.
 *   **Variance:** Incremented/Decremented by 2 towards the current deviation.
 
-![Sigma Delta Algorithm](docs/image-2.png)
+![Motion Map Generator](docs/motion_map_generator.png)
 
 ### Bounding Box Extraction
 
@@ -92,7 +106,19 @@ The bounding box block converts unstructured motion pixels into spatial regions 
     3.  **Output:** Highlight pixel edges based on active boxes.
     4.  **Clear:** Reset bank for reuse.
 
-![Bounding Box](docs/image-3.png)
+![Bounding Box Generator](docs/bounding_box_generator.png)
+
+---
+
+## Verification
+
+*   **UVM Environment:** Dedicated drivers, monitors, sequencers, and scoreboards per block.
+*   **Assertions (SVA):** Protocol and internal checks for safety and correctness.
+*   **Functional Coverage:** `dmd_tb::dmd_coverage` reached 100% (56 variables, 35 crosses).
+
+![UVM Environment](docs/uvm_env.jpg)
+
+![Coverage Summary](docs/coverage.png)
 
 ---
 
@@ -150,9 +176,33 @@ python3 dv/python/sim.py video output_folder/ result.mp4
 
 ---
 
+## Python Requirements
+
+```bash
+pip install numpy opencv-python pillow scikit-learn
+```
+
+---
+
 ## Results
 
-Evaluation demonstrates that the hardware implementation successfully detects motion with reasonable accuracy (F1 Score, Precision, Recall) compared to software baselines, while fitting within hardware constraints.
+The selected algorithm (Sigma-Delta + two-frame differencing) was evaluated on 10 test scenes using pixel-level precision/recall metrics.
+
+| Test | Precision [%] | Recall [%] | F1 [%] |
+| --- | --- | --- | --- |
+| Test1 | 79 | 82 | 74 |
+| Test2 | 86 | 57 | 61 |
+| Test3 | 60 | 71 | 63 |
+| Test4 | 88 | 94 | 91 |
+| Test5 | 73 | 83 | 76 |
+| Test6 | 60 | 84 | 71 |
+| Test7 | 65 | 81 | 73 |
+| Test8 | 75 | 88 | 80 |
+| Test9 | 62 | 72 | 66 |
+| Test10 | 65 | 68 | 66 |
+| Average | 74.3 | 78.2 | 74.4 |
+
+For reference, a baseline method (Background Subtraction + Three-Frame Differencing) achieved an average **F1 = 59.4**.
 
 ---
 

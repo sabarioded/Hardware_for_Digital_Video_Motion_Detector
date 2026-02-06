@@ -6,6 +6,8 @@ import numpy as np
 import cv2
 from sklearn.metrics import precision_score, recall_score, f1_score
 
+RAW_ORDER = "RGB0"
+
 def ensure_dir(path):
     """Create a directory if it does not already exist."""
     os.makedirs(path, exist_ok=True)
@@ -55,6 +57,18 @@ def raw_bytes_to_rgb(raw_bytes, width, height, order="RGB0"):
             raw_bytes[base + idx["B"]],
         ])
     return bytes(rgb_data)
+
+
+def raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER):
+    """Convert raw bytes (4 bytes per pixel) into an HxWx3 RGB frame."""
+    expected = width * height * 4
+    if len(raw_bytes) != expected:
+        raise ValueError(f"Unexpected raw size: {len(raw_bytes)} bytes, expected {expected}")
+
+    idx = _order_to_indices(order)
+    data = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((height * width, 4))
+    rgb = data[:, [idx["R"], idx["G"], idx["B"]]]
+    return rgb.reshape((height, width, 3))
 
 
 def raw_to_png(raw_path, png_path, width, height, order="RGB0"):
@@ -181,9 +195,9 @@ def png_to_video(frames_folder, output_path, fps=30):
     pngs_to_video(frames_folder, output_path, fps=fps, pattern="*.png")
 
 def convert_png_to_raw(frames_folder):
-    """Convert PNG frames to raw files using RBG0 byte order."""
+    """Convert PNG frames to raw files using RGB0 byte order."""
     output_folder = os.path.join(frames_folder, 'raw_rbg32')
-    convert_images_to_raw(frames_folder, ext="png", order="RBG0", output_folder=output_folder)
+    convert_images_to_raw(frames_folder, ext="png", order=RAW_ORDER, output_folder=output_folder)
 
 def filter_motion_box_manual(motion_map, min_neighbors=5):
     """Apply a 3x3 neighbor count filter to suppress isolated motion pixels."""
@@ -196,13 +210,16 @@ def filter_motion_box_manual(motion_map, min_neighbors=5):
                 filtered[y, x] = True
     return filtered
 
-def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255, 0, 0)):
+def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255, 0, 0), progress_every=25):
     """Sigma-delta motion detection with frame differencing and box filtering."""
 
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
     if len(raw_files) < 2:
         print("Not enough frames.")
         return
+    total_frames = len(raw_files)
+    if progress_every and progress_every > 0:
+        print(f"[sigma_delta] Processing {total_frames} frames from {raw_folder}")
 
     output_folder = os.path.join(raw_folder, 'sigma_delta')
     os.makedirs(output_folder, exist_ok=True)
@@ -217,16 +234,8 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        # Parse RGB
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        byte_idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[byte_idx]
-                b = raw_bytes[byte_idx + 1]
-                g = raw_bytes[byte_idx + 2]
-                frame[y, x] = [r, b, g]
-                byte_idx += 4
+        # Parse RGB (matches hardware input: {R,G,B,0})
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         # Convert to grayscale (luminosity)
         r = frame[:, :, 0].astype(np.uint16)
@@ -241,6 +250,8 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
             background = gray.copy()
             variation = np.full_like(gray, 2, dtype=np.uint8)
             gray_prev = gray.copy()
+            if progress_every and (frame_idx % progress_every == 0 or frame_idx == total_frames - 1):
+                print(f"[sigma_delta] {frame_idx + 1}/{total_frames} frames processed", flush=True)
             continue
 
         # Step 1: Update background M(t)
@@ -311,6 +322,9 @@ def sigma_delta_motion_detection(raw_folder, width, height, highlight_color=(255
 
         gray_prev = gray.copy()
 
+        if progress_every and (frame_idx % progress_every == 0 or frame_idx == total_frames - 1):
+            print(f"[sigma_delta] {frame_idx + 1}/{total_frames} frames processed", flush=True)
+
 def background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15, highlight_color=(255, 0, 0)):
     """Background update with 3-frame differencing in grayscale."""
     raw_files = sorted(glob.glob(os.path.join(raw_folder, '*.raw')))
@@ -329,15 +343,7 @@ def background_and_3frames_grayscale(raw_folder, width, height, shift=4, thresho
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        byte_idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[byte_idx]
-                b = raw_bytes[byte_idx + 1]
-                g = raw_bytes[byte_idx + 2]
-                frame[y, x] = [r, b, g]
-                byte_idx += 4
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         # # Convert to grayscale: simple average
         # gray_frame = np.mean(frame, axis=2).astype(np.uint8)
@@ -452,11 +458,11 @@ def evaluate_all_motion_maps(motion_map_folder, ground_truth_folder, num_frames)
 
 def convert_bmp_to_raw(frames_folder):
     """Convert BMP frames into raw RGB0 files."""
-    convert_images_to_raw(frames_folder, ext="bmp", order="RGB0")
+    convert_images_to_raw(frames_folder, ext="bmp", order=RAW_ORDER)
 
 def convert_jpg_to_raw(frames_folder):
     """Convert JPG frames into raw RGB0 files."""
-    convert_images_to_raw(frames_folder, ext="jpg", order="RGB0")
+    convert_images_to_raw(frames_folder, ext="jpg", order=RAW_ORDER)
 
 def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_color=(255, 0, 0)):
     """Sigma-delta motion detection using 3-frame differencing."""
@@ -480,16 +486,8 @@ def sigma_delta_motion_detection_3frames(raw_folder, width, height, highlight_co
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        # Parse RGB
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        byte_idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[byte_idx]
-                b = raw_bytes[byte_idx + 1]
-                g = raw_bytes[byte_idx + 2]
-                frame[y, x] = [r, b, g]
-                byte_idx += 4
+        # Parse RGB (matches hardware input: {R,G,B,0})
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         # Convert to grayscale (luminosity)
         r = frame[:, :, 0].astype(np.uint16)
@@ -609,15 +607,7 @@ def optical_flow_motion_detection(raw_folder, width, height, highlight_color=(25
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        byte_idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[byte_idx]
-                b = raw_bytes[byte_idx + 1]
-                g = raw_bytes[byte_idx + 2]
-                frame[y, x] = [r, g, b]  # Correct RGB order
-                byte_idx += 4
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
@@ -705,16 +695,8 @@ def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_c
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        # Parse RGB
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        byte_idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[byte_idx]
-                b = raw_bytes[byte_idx + 1]
-                g = raw_bytes[byte_idx + 2]
-                frame[y, x] = [r, b, g]
-                byte_idx += 4
+        # Parse RGB (matches hardware input: {R,G,B,0})
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         # Convert to grayscale
         r = frame[:, :, 0].astype(np.uint16)
@@ -765,12 +747,15 @@ def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_c
         output_frame[motion_map] = highlight_color
 
         #### Step 7: Save Outputs
-        output_raw_path = os.path.join(output_folder, f"sigma_delta_{frame_idx:04}.raw")
-        with open(output_raw_path, 'wb') as f_out:
-            for y in range(height):
-                for x in range(width):
-                    r, b, g = output_frame[y, x]
-                    f_out.write(bytes([r, b, g, 0]))
+        save_rgb_frame_as_raw(
+            output_frame=output_frame,
+            width=width,
+            height=height,
+            output_folder=output_folder,
+            base_filename="sigma_delta",
+            frame_idx=frame_idx,
+            order=RAW_ORDER
+        )
 
         # Save binary motion map for evaluation
         np.save(os.path.join(output_folder, f"motion_map_{frame_idx:03}.npy"), motion_map.astype(np.uint8))
@@ -778,7 +763,7 @@ def sigma_delta_motion_detection_improved(raw_folder, width, height, highlight_c
         #### Step 8: Update Previous Frame
         gray_prev = gray.copy()
 
-def test(current_test, frames_folder, ground_truth_folder, num_frames):
+def test(current_test, frames_folder, ground_truth_folder, num_frames, progress_every=25):
     """Run a single test case for the selected algorithm and evaluate results."""
     convert_bmp_to_raw(frames_folder)
 
@@ -798,7 +783,8 @@ def test(current_test, frames_folder, ground_truth_folder, num_frames):
             raw_folder=raw_folder,
             width=width,
             height=height,
-            highlight_color=(255, 0, 0)
+            highlight_color=(255, 0, 0),
+            progress_every=progress_every
         )
     elif(current_test == 'background_and_3frames'):
         background_and_3frames_grayscale(raw_folder, width, height, shift=4, threshold=15)
@@ -850,7 +836,7 @@ def test(current_test, frames_folder, ground_truth_folder, num_frames):
 def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixels=20, max_boxes=8):
     """Scanline-based bounding box merge with limited box capacity."""
     height, width = motion_map.shape
-    boxes = np.zeros((max_boxes, 4), dtype=np.int16)  # [x_min, y_min, x_max, y_max]
+    boxes = np.zeros((max_boxes, 4), dtype=np.int32)  # [x_min, y_min, x_max, y_max]
     box_valid = np.zeros(max_boxes, dtype=bool)
 
     for y in range(height):
@@ -885,13 +871,13 @@ def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixe
                             break
                     if not inserted:
                         # All boxes full - evict smallest if new box is larger
-                        new_area = (x_end - x_start + 1)
+                        new_area = int(x_end - x_start + 1)
                         min_area = float('inf')
                         min_idx = -1
                         for i in range(max_boxes):
                             if box_valid[i]:
                                 bx_min, by_min, bx_max, by_max = boxes[i]
-                                area = (bx_max - bx_min + 1) * (by_max - by_min + 1)
+                                area = int((bx_max - bx_min + 1) * (by_max - by_min + 1))
                                 if area < min_area:
                                     min_area = area
                                     min_idx = i
@@ -905,7 +891,7 @@ def find_bounding_boxes_hw_friendly_with_merge_and_eviction(motion_map, min_pixe
     for i in range(max_boxes):
         if box_valid[i]:
             x_min, y_min, x_max, y_max = boxes[i]
-            area = (x_max - x_min + 1) * (y_max - y_min + 1)
+            area = int((x_max - x_min + 1) * (y_max - y_min + 1))
             if area >= min_pixels:
                 final_boxes.append((x_min, y_min, x_max, y_max))
 
@@ -1054,15 +1040,7 @@ def sigma_delta_motion_detection_labeler(raw_folder, width, height,
         with open(raw_path, 'rb') as f:
             raw_bytes = f.read()
 
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        idx = 0
-        for y in range(height):
-            for x in range(width):
-                r = raw_bytes[idx]
-                g = raw_bytes[idx + 1]
-                b = raw_bytes[idx + 2]
-                frame[y, x] = [r, g, b]
-                idx += 4
+        frame = raw_bytes_to_frame(raw_bytes, width, height, order=RAW_ORDER)
 
         r16 = frame[:, :, 0].astype(np.uint16)
         g16 = frame[:, :, 1].astype(np.uint16)
@@ -1114,12 +1092,23 @@ def main():
     import os
     import re
     
-    parser = argparse.ArgumentParser(description="Motion Detection Simulation CLI")
-    subparsers = parser.add_subparsers(dest="command", help="Command to run")
-    
     # Command: run (SIMULATION)
-    parser_run = subparsers.add_parser("run", help="Run motion detection simulation")
-    parser_run.add_argument("--algorithm", default="sigma_delta", help="Algorithm to use (sigma_delta, etc.)")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_testcases_root = os.path.join(script_dir, "Testcases")
+
+    run_parent = argparse.ArgumentParser(add_help=False)
+    run_parent.add_argument("--algorithm", default="sigma_delta", help="Algorithm to use (sigma_delta, etc.)")
+    run_parent.add_argument("--testcases-root", default=default_testcases_root,
+                            help="Path to the Testcases folder")
+    run_parent.add_argument("--progress-every", type=int, default=25,
+                            help="Print progress every N frames (0 to disable)")
+    run_parent.add_argument("--tests", default="",
+                            help="Comma-separated list of tests to run (e.g. test1,test3). Empty runs all.")
+
+    parser = argparse.ArgumentParser(description="Motion Detection Simulation CLI", parents=[run_parent])
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    parser_run = subparsers.add_parser("run", help="Run motion detection simulation", parents=[run_parent])
     
     # Command: rename (from rename_utils.py)
     parser_rename = subparsers.add_parser("rename", help="Rename files using regex")
@@ -1162,13 +1151,31 @@ def main():
             ('test10', 400)
         ]
 
+        testcases_root = default_testcases_root
+        if args.command == "run":
+            testcases_root = args.testcases_root
+
+        if not os.path.isdir(testcases_root):
+            raise SystemExit(f"Testcases folder not found: {testcases_root}")
+
+        selected_tests = None
+        if args.command == "run" and args.tests:
+            selected_tests = {t.strip() for t in args.tests.split(",") if t.strip()}
+            valid_tests = {name for name, _ in test_cases}
+            invalid = sorted(selected_tests - valid_tests)
+            if invalid:
+                raise SystemExit(f"Unknown tests: {', '.join(invalid)}")
+
         for test_name, num_frames in test_cases:
+            if selected_tests and test_name not in selected_tests:
+                continue
             print(f"\nRunning {test_name.upper()} with {selected_algorithm}")
             test(
                 current_test=selected_algorithm,
-                frames_folder=f'simulations/Testcases/{test_name}',
-                ground_truth_folder=f'simulations/Testcases/{test_name}/ground_truth',
-                num_frames=num_frames
+                frames_folder=os.path.join(testcases_root, test_name),
+                ground_truth_folder=os.path.join(testcases_root, test_name, "ground_truth"),
+                num_frames=num_frames,
+                progress_every=args.progress_every
             )
             
     elif args.command == "rename":

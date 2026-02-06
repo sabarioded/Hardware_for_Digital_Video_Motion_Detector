@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 *.pyc
+dv/python/Testcases/**/raw_rbg32/
 
 # VSCode settings
 .vscode/
